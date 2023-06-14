@@ -93,6 +93,36 @@ class ResultWrapper(metaclass=ResultsWrapperMeta):
     def __invert__(self):
         return self.wrap_result(~ self.base_object)
 
+    def __add__(self, other):
+        return self.wrap_result(self.base_object + base_v(other))
+
+    def __radd__(self, other):
+        return self.wrap_result(base_v(other) + self.base_object)
+
+    def __mul__(self, other):
+        return self.wrap_result(self.base_object * base_v(other))
+
+    def __rmul__(self, other):
+        return self.wrap_result(base_v(other) * self.base_object)
+
+    def __truediv__(self, other):
+        return self.wrap_result(self.base_object / base_v(other))
+
+    def __rtruediv__(self, other):
+        return self.wrap_result(base_v(other) / self.base_object)
+
+    def __floordiv__(self, other):
+        return self.wrap_result(self.base_object // base_v(other))
+
+    def __rfloordiv__(self, other):
+        return self.wrap_result(base_v(other) // self.base_object)
+
+    def __mod__(self, other):
+        return self.wrap_result(self.base_object % base_v(other))
+
+    def __rmod__(self, other):
+        return self.wrap_result(self.base_object % base_v(other))
+
     def __neg__(self):
         return self.wrap_result(- self.base_object)
 
@@ -115,10 +145,17 @@ class ResultWrapper(metaclass=ResultsWrapperMeta):
         return len(self.base_object)
 
     def __eq__(self, other):
-        return self.wrap_result(self.base_object == other)
+        return self.wrap_result(self.base_object == base_v(other))
+
+    def __req__(self, other):
+        return self.wrap_result(base_v(other) == self.base_object)
 
     def __ne__(self, other):
-        return self.wrap_result(self.base_object != other)
+        return self.wrap_result(self.base_object != base_v(other))
+
+    def __rne__(self, other):
+        return self.wrap_result(base_v(other) != self.base_object)
+
 
     def wrap_result(self, res):
         return wrap_result(res, self.dataframe_class, self.series_class)
