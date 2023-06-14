@@ -51,10 +51,9 @@ class ResultsWrapperMeta(type):
 class ResultWrapper(metaclass=ResultsWrapperMeta):
     BLANK_VALUES = {np.nan, '', None, pd.NA, pd.NaT}
 
-    def __init__(self, *args, **kwargs):
-        processed_args = [base_v(arg) for arg in args]
+    def __init__(self, data=None, **kwargs):
         processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
-        self.base_object = self.base(*processed_args, **processed_kwargs)
+        self.base_object = data if isinstance(data, self.base) else self.base(data=data, **processed_kwargs)
 
     def __getattr__(self, item):
         attr = getattr(self.base_object, item)
