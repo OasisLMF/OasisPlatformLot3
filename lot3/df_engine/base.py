@@ -127,13 +127,13 @@ class ResultWrapper(metaclass=ResultsWrapperMeta):
         return self.wrap_result(- self.base_object)
 
     def __gt__(self, other):
-        return self.wrap_result(self.base_object > other)
+        return self.wrap_result(self.base_object > base_v(other))
 
     def __lt__(self, other):
-        return self.wrap_result(self.base_object < other)
+        return self.wrap_result(self.base_object < base_v(other))
 
     def __contains__(self, item):
-        return item in self.base_object
+        return base_v(item) in self.base_object
 
     def __iter__(self):
         return self.wrap_result(iter(self.base_object))
@@ -155,7 +155,6 @@ class ResultWrapper(metaclass=ResultsWrapperMeta):
 
     def __rne__(self, other):
         return self.wrap_result(base_v(other) != self.base_object)
-
 
     def wrap_result(self, res):
         return wrap_result(res, self.dataframe_class, self.series_class)
