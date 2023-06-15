@@ -1,10 +1,14 @@
-from typing import Callable
+from typing import Callable, Iterable
 
 import numpy as np
 import pandas as pd
 
 
 def base_v(v):
+    if isinstance(v, (list, set, tuple, )):
+        return type(v)(base_v(i) for i in v)
+    elif isinstance(v, dict):
+        return {base_v(k): base_v(_v) for k, _v in v.items()}
     return getattr(v, "base_object", v)
 
 
@@ -148,8 +152,8 @@ def _rne(self, other):
 
 
 def _call(self, *args, **kwargs):
-    processed_args = [base_v(arg) for arg in args]
-    processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
+    processed_args = base_v(args)
+    processed_kwargs = base_v(kwargs)
 
     return self.wrap_result(
         self.base_object(*processed_args, **processed_kwargs),
