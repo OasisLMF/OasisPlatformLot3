@@ -4,154 +4,241 @@ import numpy as np
 import pandas as pd
 
 
+def base_v(v):
+    return getattr(v, "base_object", v)
+
+
 class WrappedMeta(type):
     def __getattr__(cls, item):
         res = getattr(cls.base, item)
         return wrap_result(res, cls.dataframe_class, cls.series_class)
 
+###
+# the set of override functions to use in wrapped classes
+# we cant just assign all to each override class as this
+# can break check. For example, if we provide a __call__
+# override for each wrapped object we would break all
+# all checks for "callable"
+###
+
+def _getitem(self, item):
+    attr = self.base_object[base_v(item)]
+    return self.wrap_result(attr)
+
+
+def _setitem(self, key, value):
+    if isinstance(key, tuple):
+        key = tuple(base_v(k) for k in key)
+    else:
+        key = base_v(key)
+
+    self.base_object[key] = base_v(value)
+
+
+def _or(self, other):
+    return self.wrap_result(self.base_object | base_v(other))
+
+
+def _ror(self, other):
+    return self.wrap_result(base_v(other) | self.base_object)
+
+
+def _and(self, other):
+    return self.wrap_result(self.base_object & base_v(other))
+
+
+def _rand(self, other):
+    return self.wrap_result(base_v(other) & self.base_object)
+
+
+def _xor(self, other):
+    return self.wrap_result(self.base_object ^ base_v(other))
+
+
+def _rxor(self, other):
+    return self.wrap_result(base_v(other) ^ self.base_object)
+
+
+def _invert(self):
+    return self.wrap_result(~ self.base_object)
+
+
+def _add(self, other):
+    return self.wrap_result(self.base_object + base_v(other))
+
+
+def _radd(self, other):
+    return self.wrap_result(base_v(other) + self.base_object)
+
+
+def _mul(self, other):
+    return self.wrap_result(self.base_object * base_v(other))
+
+
+def _rmul(self, other):
+    return self.wrap_result(base_v(other) * self.base_object)
+
+
+def _truediv(self, other):
+    return self.wrap_result(self.base_object / base_v(other))
+
+
+def _rtruediv(self, other):
+    return self.wrap_result(base_v(other) / self.base_object)
+
+
+def _floordiv(self, other):
+    return self.wrap_result(self.base_object // base_v(other))
+
+
+def _rfloordiv(self, other):
+    return self.wrap_result(base_v(other) // self.base_object)
+
+
+def _mod(self, other):
+    return self.wrap_result(self.base_object % base_v(other))
+
+
+def _rmod(self, other):
+    return self.wrap_result(self.base_object % base_v(other))
+
+
+def _neg(self):
+    return self.wrap_result(- self.base_object)
+
+
+def _gt(self, other):
+    return self.wrap_result(self.base_object > base_v(other))
+
+
+def _lt(self, other):
+    return self.wrap_result(self.base_object < base_v(other))
+
+
+def _contains(self, item):
+    return base_v(item) in self.base_object
+
+
+def _iter(self):
+    return (self.wrap_result(i) for i in self.base_object)
+
+
+def _bool(self):
+    return bool(self.base_object)
+
+
+def _len(self):
+    return len(self.base_object)
+
+
+def _eq(self, other):
+    return self.wrap_result(self.base_object == base_v(other))
+
+
+def _req(self, other):
+    return self.wrap_result(base_v(other) == self.base_object)
+
+
+def _ne(self, other):
+    return self.wrap_result(self.base_object != base_v(other))
+
+
+def _rne(self, other):
+    return self.wrap_result(base_v(other) != self.base_object)
+
+
+def _call(self, *args, **kwargs):
+    processed_args = [base_v(arg) for arg in args]
+    processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
+
+    return self.wrap_result(
+        self.base_object(*processed_args, **processed_kwargs),
+    )
+
+
+def _array(self):
+    return self.base_object.__array__()
+
+
+def _hash(self):
+    return hash(self.base_object)
+
+
+overrides = {
+    "__getitem__": _getitem,
+    "__setitem__": _setitem,
+    "__or__": _or,
+    "__ror__": _ror,
+    "__and__": _and,
+    "__rand__": _rand,
+    "__xor__": _xor,
+    "__rxor__": _rxor,
+    "__invert__": _invert,
+    "__add__": _add,
+    "__radd__": _radd,
+    "__mul__": _mul,
+    "__rmul__": _rmul,
+    "__truediv__": _truediv,
+    "__rtruediv__": _rtruediv,
+    "__floordiv__": _floordiv,
+    "__rfloordiv__": _rfloordiv,
+    "__mod__": _mod,
+    "__rmod__": _rmod,
+    "__neg__": _neg,
+    "__gt__": _gt,
+    "__lt__": _lt,
+    "__contains__": _contains,
+    "__iter__": _iter,
+    "__bool__": _bool,
+    "__len__": _len,
+    "__eq__": _eq,
+    "__req__": _req,
+    "__ne__": _ne,
+    "__rne__": _rne,
+    "__call__": _call,
+    "__hash__": _hash,
+    "__array__": _array,
+}
+
 
 class WrappedBase(metaclass=WrappedMeta):
+    def __init__(self, base_object, dataframe_class, series_class):
+        self.base_object = base_object
+        self.dataframe_class = dataframe_class
+        self.series_class = series_class
+
     def __getattr__(self, item):
         attr = getattr(self.base_object, item)
         return self.wrap_result(attr)
 
     def __setattr__(self, key, value):
-        if key == "base_object":
+        if key in ["base_object", "dataframe_class", "series_class"]:
             super().__setattr__(key, value)
         else:
             setattr(self.base_object, key, base_v(value))
-
-    def __getitem__(self, item):
-        attr = self.base_object[base_v(item)]
-        return self.wrap_result(attr)
-
-    def __setitem__(self, key, value):
-        self.base_object[key] = base_v(value)
-
-    def __or__(self, other):
-        return self.wrap_result(self.base_object | base_v(other))
-
-    def __ror__(self, other):
-        return self.wrap_result(base_v(other) | self.base_object)
-
-    def __and__(self, other):
-        return self.wrap_result(self.base_object & base_v(other))
-
-    def __rand__(self, other):
-        return self.wrap_result(base_v(other) & self.base_object)
-
-    def __xor__(self, other):
-        return self.wrap_result(self.base_object ^ base_v(other))
-
-    def __rxor__(self, other):
-        return self.wrap_result(base_v(other) ^ self.base_object)
-
-    def __invert__(self):
-        return self.wrap_result(~ self.base_object)
-
-    def __add__(self, other):
-        return self.wrap_result(self.base_object + base_v(other))
-
-    def __radd__(self, other):
-        return self.wrap_result(base_v(other) + self.base_object)
-
-    def __mul__(self, other):
-        return self.wrap_result(self.base_object * base_v(other))
-
-    def __rmul__(self, other):
-        return self.wrap_result(base_v(other) * self.base_object)
-
-    def __truediv__(self, other):
-        return self.wrap_result(self.base_object / base_v(other))
-
-    def __rtruediv__(self, other):
-        return self.wrap_result(base_v(other) / self.base_object)
-
-    def __floordiv__(self, other):
-        return self.wrap_result(self.base_object // base_v(other))
-
-    def __rfloordiv__(self, other):
-        return self.wrap_result(base_v(other) // self.base_object)
-
-    def __mod__(self, other):
-        return self.wrap_result(self.base_object % base_v(other))
-
-    def __rmod__(self, other):
-        return self.wrap_result(self.base_object % base_v(other))
-
-    def __neg__(self):
-        return self.wrap_result(- self.base_object)
-
-    def __gt__(self, other):
-        return self.wrap_result(self.base_object > base_v(other))
-
-    def __lt__(self, other):
-        return self.wrap_result(self.base_object < base_v(other))
-
-    def __contains__(self, item):
-        return base_v(item) in self.base_object
-
-    def __iter__(self):
-        return self.wrap_result(iter(self.base_object))
-
-    def __bool__(self):
-        return len(self.base_object) > 0
-
-    def __len__(self):
-        return len(self.base_object)
-
-    def __eq__(self, other):
-        return self.wrap_result(self.base_object == base_v(other))
-
-    def __req__(self, other):
-        return self.wrap_result(base_v(other) == self.base_object)
-
-    def __ne__(self, other):
-        return self.wrap_result(self.base_object != base_v(other))
-
-    def __rne__(self, other):
-        return self.wrap_result(base_v(other) != self.base_object)
 
     def wrap_result(self, res):
         return wrap_result(res, self.dataframe_class, self.series_class)
 
 
 def wrap_result(res, dataframe_class, series_class):
-    if isinstance(res, Callable):
-        return WrappedIndexAndCallable(res, dataframe_class, series_class)
-    elif isinstance(res, dataframe_class.base):
+    if isinstance(res, (int, float, str, bytes, )):
+        return res
+    if isinstance(res, dataframe_class.base):
         return dataframe_class(res)
     elif isinstance(res, series_class.base):
         return series_class(res)
 
-    return res
-
-
-class WrappedIndexAndCallable:
-    def __init__(self, base_object, dataframe_class, series_class):
-        self.base_object = base_object
-        self.dataframe_class = dataframe_class
-        self.series_class = series_class
-
-    def __getitem__(self, item):
-        return wrap_result(self.base_object[item], self.dataframe_class, self.series_class)
-
-    def __setitem__(self, key, value):
-        self.base_object[key] = base_v(value)
-
-    def __call__(self, *args, **kwargs):
-        processed_args = [base_v(arg) for arg in args]
-        processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
-
-        return wrap_result(
-            self.base_object(*processed_args, **processed_kwargs),
-            self.dataframe_class,
-            self.series_class,
-        )
-
-
-def base_v(v):
-    return getattr(v, "base_object", v)
+    # build a class to wrap all results.
+    _wrapper = type(
+        f"{type(res).__name__}Wrapper",
+        (WrappedBase, ),
+        {
+            k: overrides[k]
+            for k in dir(res) if k in overrides
+        }
+    )
+    return _wrapper(res, dataframe_class, series_class)
 
 
 class ResultWrapper(WrappedBase):
@@ -159,7 +246,43 @@ class ResultWrapper(WrappedBase):
 
     def __init__(self, data=None, **kwargs):
         processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
-        self.base_object = data if isinstance(data, self.base) else self.base(data=data, **processed_kwargs)
+        super().__init__(
+            data if isinstance(data, self.base) else self.base(data=data, **processed_kwargs),
+            self.dataframe_class,
+            self.series_class,
+        )
+
+    __getitem__ = _getitem
+    __setitem__ = _setitem
+    __or__ = _or
+    __ror__ = _ror
+    __and__ = _and
+    __rand__ = _rand
+    __xor__ = _xor
+    __rxor__ = _rxor
+    __invert__ = _invert
+    __add__ = _add
+    __radd__ = _radd
+    __mul__ = _mul
+    __rmul__ = _rmul
+    __truediv__ = _truediv
+    __rtruediv__ = _rtruediv
+    __floordiv__ = _floordiv
+    __rfloordiv__ = _rfloordiv
+    __mod__ = _mod
+    __rmod__ = _rmod
+    __neg__ = _neg
+    __gt__ = _gt
+    __lt__ = _lt
+    __contains__ = _contains
+    __iter__ = _iter
+    __bool__ = _bool
+    __len__ = _len
+    __eq__ = _eq
+    __req__ = _req
+    __ne__ = _ne
+    __rne__ = _rne
+    __hash__ = _hash
 
     @property
     def loc(self):
