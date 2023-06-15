@@ -250,7 +250,7 @@ def wrap_result(res, dataframe_class, series_class):
         # ensure we dont wrap a wrapped object
         return res
 
-    if isinstance(res, (int, float, str, bytes, )):
+    if isinstance(res, (int, float, str, bytes, bool, np.int, np.float, np.str, np.bool, np.long, np.int64)):
         return res
     if isinstance(res, dataframe_class.base):
         return dataframe_class(res)
