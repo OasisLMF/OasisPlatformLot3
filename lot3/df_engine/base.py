@@ -75,6 +75,14 @@ def _radd(self, other):
     return self.wrap_result(base_v(other) + self.base_object)
 
 
+def _sub(self, other):
+    return self.wrap_result(self.base_object + base_v(other))
+
+
+def _rsub(self, other):
+    return self.wrap_result(base_v(other) + self.base_object)
+
+
 def _mul(self, other):
     return self.wrap_result(self.base_object * base_v(other))
 
@@ -196,6 +204,8 @@ overrides = {
     "__invert__": _invert,
     "__add__": _add,
     "__radd__": _radd,
+    "__sub__": _sub,
+    "__rsub__": _rsub,
     "__mul__": _mul,
     "__rmul__": _rmul,
     "__truediv__": _truediv,
@@ -291,6 +301,8 @@ class ResultWrapper(WrappedBase):
     __invert__ = _invert
     __add__ = _add
     __radd__ = _radd
+    __sub__ = _sub
+    __rsub__ = _rsub
     __mul__ = _mul
     __rmul__ = _rmul
     __truediv__ = _truediv
@@ -307,6 +319,7 @@ class ResultWrapper(WrappedBase):
     __bool__ = _bool
     __len__ = _len
     __eq__ = _eq
+    __ne__ = _ne
     __array__: _array
     __rshift__: _rshift
     __rrshift__: _rrshift
