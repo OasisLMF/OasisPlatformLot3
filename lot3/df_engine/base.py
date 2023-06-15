@@ -314,15 +314,6 @@ class ResultWrapper(WrappedBase):
     __rlshift__: _rlshift
 
 
-    @property
-    def loc(self):
-        return self.wrap_result(self.base_object.loc)
-
-    @property
-    def iloc(self):
-        return self.wrap_result(self.base_object.iloc)
-
-
 class BaseOasisSeries(ResultWrapper):
     base = pd.Series
 
