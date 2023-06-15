@@ -222,6 +222,10 @@ class WrappedBase(metaclass=WrappedMeta):
 
 
 def wrap_result(res, dataframe_class, series_class):
+    if isinstance(res, WrappedBase):
+        # ensure we dont wrap a wrapped object
+        return res
+
     if isinstance(res, (int, float, str, bytes, )):
         return res
     if isinstance(res, dataframe_class.base):
