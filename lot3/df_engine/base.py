@@ -168,6 +168,22 @@ def _hash(self):
     return hash(self.base_object)
 
 
+def _rshift(self, other):
+    return self.wrap_result(self.base_object >> base_v(other))
+
+
+def _rrshift(self, other):
+    return self.wrap_result(base_v(other) >> self.base_object)
+
+
+def _lshift(self, other):
+    return self.wrap_result(self.base_object << base_v(other))
+
+
+def _rlshift(self, other):
+    return self.wrap_result(base_v(other) << self.base_object)
+
+
 overrides = {
     "__getitem__": _getitem,
     "__setitem__": _setitem,
@@ -202,6 +218,10 @@ overrides = {
     "__call__": _call,
     "__hash__": _hash,
     "__array__": _array,
+    "__rshift__": _rshift,
+    "__rrshift__": _rrshift,
+    "__lshift__": _lshift,
+    "__rlshift__": _rlshift,
 }
 
 
