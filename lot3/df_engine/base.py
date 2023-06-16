@@ -25,6 +25,7 @@ class WrappedMeta(type):
 # all checks for "callable"
 ###
 
+
 def _getitem(self, item):
     attr = self.base_object[base_v(item)]
     return self.wrap_result(attr)
@@ -256,11 +257,16 @@ class WrappedBase(metaclass=WrappedMeta):
 
 
 def wrap_result(res, dataframe_class, series_class):
+    if isinstance(res, type):
+        def wrapped_init(*args, **kwargs):
+            return wrap_result(res(*args, **kwargs), dataframe_class, series_class)
+        return wrapped_init
+
     if isinstance(res, WrappedBase):
         # ensure we dont wrap a wrapped object
         return res
 
-    if isinstance(res, (int, float, str, bytes, bool, np.int, np.float, np.str, np.bool, np.long, np.int64, np.ndarray)):
+    if isinstance(res, (int, float, str, bytes, bool, np.int, np.float, np.str, np.bool, np.long, np.int32, np.int64, np.ndarray)):
         return res
     if isinstance(res, dataframe_class.base):
         return dataframe_class(res)
