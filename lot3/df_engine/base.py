@@ -1,3 +1,4 @@
+from collections import namedtuple
 from typing import Callable, Iterable
 
 import numpy as np
@@ -5,7 +6,9 @@ import pandas as pd
 
 
 def base_v(v):
-    if isinstance(v, (list, set, tuple, )):
+    if isinstance(v, tuple) and hasattr(v, "_fields"):
+        return type(v)(*[base_v(i) for i in v])
+    elif isinstance(v, (list, set, tuple, )):
         return type(v)(base_v(i) for i in v)
     elif isinstance(v, dict):
         return {base_v(k): base_v(_v) for k, _v in v.items()}
@@ -266,7 +269,7 @@ def wrap_result(res, dataframe_class, series_class):
         # ensure we dont wrap a wrapped object
         return res
 
-    if isinstance(res, (int, float, str, bytes, bool, np.int, np.float, np.str, np.bool, np.long, np.int32, np.int64, np.ndarray)):
+    if isinstance(res, (int, float, str, bytes, bool, np.int32, np.int64, np.ndarray)):
         return res
     if isinstance(res, dataframe_class.base):
         return dataframe_class(res)
