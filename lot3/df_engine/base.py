@@ -283,6 +283,7 @@ class ResultWrapper(WrappedBase):
     BLANK_VALUES = {np.nan, '', None, pd.NA, pd.NaT}
 
     def __init__(self, data=None, **kwargs):
+        data = base_v(data)
         processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
         super().__init__(
             data if isinstance(data, self.base) else self.base(data=data, **processed_kwargs),
