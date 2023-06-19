@@ -1,4 +1,5 @@
 from collections import namedtuple
+from types import NoneType
 from typing import Callable, Iterable
 
 import numpy as np
@@ -269,7 +270,20 @@ def wrap_result(res, dataframe_class, series_class):
         # ensure we dont wrap a wrapped object
         return res
 
-    if isinstance(res, (int, float, str, bytes, bool, np.int32, np.int64, np.ndarray)):
+    ignored_types = (
+        int,
+        float,
+        str,
+        bytes,
+        bool,
+        NoneType,
+        np.int32,
+        np.int64,
+        np.ndarray,
+        np.dtype,
+        dataframe_class.base_index,
+    )
+    if isinstance(res, ignored_types):
         return res
     if isinstance(res, dataframe_class.base):
         return dataframe_class(res)
@@ -339,6 +353,7 @@ class ResultWrapper(WrappedBase):
 
 class BaseOasisSeries(ResultWrapper):
     base = pd.Series
+    base_index = pd.Index
 
     def blank(self):
         s = self.base_object
@@ -353,6 +368,7 @@ class BaseOasisSeries(ResultWrapper):
 
 class BaseOasisDataframe(ResultWrapper):
     base = pd.DataFrame
+    base_index = pd.Index
 
     def blank(self):
         df = self.base_object
