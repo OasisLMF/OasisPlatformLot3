@@ -197,6 +197,10 @@ def _rlshift(self, other):
     return self.wrap_result(base_v(other) << self.base_object)
 
 
+def _del(self):
+    del self.base_object
+
+
 overrides = {
     "__getitem__": _getitem,
     "__setitem__": _setitem,
@@ -237,6 +241,7 @@ overrides = {
     "__rrshift__": _rrshift,
     "__lshift__": _lshift,
     "__rlshift__": _rlshift,
+    "__del__": _del,
 }
 
 
@@ -349,6 +354,7 @@ class ResultWrapper(WrappedBase):
     __rrshift__: _rrshift
     __lshift__: _lshift
     __rlshift__: _rlshift
+    __del__: _del
 
 
 class BaseOasisSeries(ResultWrapper):
