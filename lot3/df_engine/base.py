@@ -81,11 +81,11 @@ def _radd(self, other):
 
 
 def _sub(self, other):
-    return self.wrap_result(self.base_object + base_v(other))
+    return self.wrap_result(self.base_object - base_v(other))
 
 
 def _rsub(self, other):
-    return self.wrap_result(base_v(other) + self.base_object)
+    return self.wrap_result(base_v(other) - self.base_object)
 
 
 def _mul(self, other):
