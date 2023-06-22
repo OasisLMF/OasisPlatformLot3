@@ -387,17 +387,14 @@ BaseOasisDataframe.dataframe_class = BaseOasisDataframe
 BaseOasisDataframe.series_class = BaseOasisSeries
 
 
-class DfEngineMeta(type):
-    def __getattr__(cls, item):
-        res = getattr(cls.module, item)
-        return cls.wrap_result(res)
-
-
-class BaseDfEngine(metaclass=DfEngineMeta):
+class BaseDfEngine:
     module = pd
     DataFrame = BaseOasisDataframe
     Series = BaseOasisSeries
 
-    @classmethod
-    def wrap_result(cls, res):
-        return wrap_result(res, cls.DataFrame, cls.Series)
+    def __getattr__(self, item):
+        res = getattr(self.module, item)
+        return self.wrap_result(res)
+
+    def wrap_result(self, res):
+        return wrap_result(res, self.DataFrame, self.Series)
