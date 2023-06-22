@@ -1,11 +1,19 @@
 import importlib
 
+from lot3.df_engine import BaseDfEngine
+
 _conf = {}
 _engines = {}
 
 
 class ConfigError(Exception):
     pass
+
+
+def reset():
+    global _conf, _engines
+    _conf = {}
+    _engines = {}
 
 
 def configure(conf=None):
@@ -38,6 +46,9 @@ def load(file_type):
     module_path, cls_name = path_split
     module = importlib.import_module(module_path)
     cls = getattr(module, cls_name)
+
+    if cls is not BaseDfEngine and BaseDfEngine not in cls.__bases__:
+        raise ConfigError(f"'{cls.__name__}' does not extend 'BaseDfEngine'")
 
     return cls(**found_conf.get("options", {}))
 
