@@ -93,6 +93,12 @@ class WrapableObject:
     def __neg__(self):
         return {"value": -self.base["value"]}
 
+    def __pos__(self):
+        return {"value": +self.base["value"]}
+
+    def __abs__(self):
+        return {"value": abs(self.base["value"])}
+
     def __gt__(self, other):
         return self.base["value"] > other
 
@@ -133,7 +139,7 @@ class WrapableObject:
         return self.base
 
     def __hash__(self):
-        return hash(self.base)
+        return hash(self.base["value"])
 
     def __array__(self):
         return np.array(self.base)
@@ -149,9 +155,6 @@ class WrapableObject:
 
     def __rlshift__(self, other):
         return {"value": other << self.base["value"]}
-
-    def __del__(self):
-        del self.base["value"]
 
 
 lr_operators = [
@@ -196,25 +199,18 @@ l_operators = [
 ]
 
 
-def __del__(x):
-    del x
-    return x
-
-
 unary_operators = [
     operator.__not__,
     operator.__invert__,
     operator.__neg__,
     operator.__pos__,
     operator.__abs__,
-    iter,
+    list,
     bool,
     len,
     hash,
     operator.__call__,
     np.array,
-    __del__,
-    operator.__index__,
 ]
 
 
@@ -254,6 +250,14 @@ def test_right_operators___result_is_the_same_as_the_base(operator):
     unwrapped = WrapableObject()
 
     assert operator(2, wrapped) == operator(2, unwrapped)
+
+
+@pytest.mark.parametrize("operator", unary_operators)
+def test_unary_operators___result_is_the_same_as_the_base(operator):
+    wrapped = wrap_result(WrapableObject(), BaseOasisDataframe, BaseOasisSeries)
+    unwrapped = WrapableObject()
+
+    assert operator(wrapped) == operator(unwrapped)
 
 
 def test_getitem():
