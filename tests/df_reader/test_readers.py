@@ -5,16 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from lot3.df_reader.reader import OasisDaskReader, OasisPandasReader
-
-EXPECTED = {
-    "A": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},
-    "B": {0: "2023-01-01", 1: "2023-01-02", 2: "2023-01-02", 3: "2023-01-02"},
-    "C": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},
-    "D": {0: 3, 1: 3, 2: 3, 3: 3},
-    "E": {0: "test", 1: "train", 2: "test", 3: "train"},
-    "F": {0: "foo", 1: "foo", 2: "foo", 3: "foo"},
-}
+from lot3.df_reader.reader import (OasisDaskReader, OasisPandasReader,
+                                   OasisSparkReader)
 
 
 @pytest.fixture
@@ -28,15 +20,17 @@ def df():
                 pd.Timestamp("20230102"),
                 pd.Timestamp("20230102"),
             ],
-            "C": pd.Series(1, index=list(range(4)), dtype="float32"),
-            "D": np.array([3] * 4, dtype="int32"),
+            "C": pd.Series(1, index=list(range(4)), dtype="float64"),
+            "D": np.array([3] * 4),
             "E": pd.Categorical(["test", "train", "test", "train"]),
             "F": "foo",
         }
     )
 
 
-@pytest.mark.parametrize("reader", [OasisPandasReader, OasisDaskReader])
+@pytest.mark.parametrize(
+    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
+)
 def test_read_csv__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".csv") as csv:
         df.to_csv(
@@ -46,10 +40,24 @@ def test_read_csv__expected_pandas_dataframe(reader, df):
         result = reader().read_csv(csv.name)
 
         assert isinstance(result, pd.DataFrame)
-        assert result.to_dict() == EXPECTED
+        assert result.to_dict() == {
+            "A": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},
+            "B": {
+                0: "2023-01-01",
+                1: "2023-01-02",
+                2: "2023-01-02",
+                3: "2023-01-02",
+            },
+            "C": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},
+            "D": {0: 3, 1: 3, 2: 3, 3: 3},
+            "E": {0: "test", 1: "train", 2: "test", 3: "train"},
+            "F": {0: "foo", 1: "foo", 2: "foo", 3: "foo"},
+        }
 
 
-@pytest.mark.parametrize("reader", [OasisPandasReader, OasisDaskReader])
+@pytest.mark.parametrize(
+    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
+)
 def test_read_csv__df_filter__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".csv") as csv:
         df.to_csv(
@@ -72,7 +80,9 @@ def test_read_csv__df_filter__expected_pandas_dataframe(reader, df):
         }
 
 
-@pytest.mark.parametrize("reader", [OasisPandasReader, OasisDaskReader])
+@pytest.mark.parametrize(
+    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
+)
 def test_read_csv__df_filter__multiple__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".csv") as csv:
         df.to_csv(
@@ -121,17 +131,17 @@ def test_read_csv__dask__sql__expected_pandas_dataframe(df):
         )
 
         result = OasisDaskReader(
-            sql="SELECT A, B, C, D, E, F FROM table WHERE E = 'test' AND B = '2023-01-02'"
+            sql="SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'"
         ).read_csv(csv.name)
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
-            "a": {2: 1.0},
-            "b": {2: "2023-01-02"},
-            "c": {2: 1.0},
-            "d": {2: 3},
-            "e": {2: "test"},
-            "f": {2: "foo"},
+            "A": {2: 1.0},
+            "B": {2: "2023-01-02"},
+            "C": {2: 1.0},
+            "D": {2: 3},
+            "E": {2: "test"},
+            "F": {2: "foo"},
         }
 
 
@@ -153,16 +163,73 @@ def test_read_csv__dask__sql__no_data(df, caplog):
             path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
         )
 
-        result = OasisDaskReader(
-            sql="SELECT A, B, C, D, E, F FROM table WHERE E = 'tester'"
+        result = OasisDaskReader(sql="SELECT * FROM table WHERE E = 'tester'").read_csv(
+            csv.name
+        )
+
+        assert isinstance(result, pd.DataFrame)
+        assert result.to_dict() == {
+            "A": {},
+            "B": {},
+            "C": {},
+            "D": {},
+            "E": {},
+            "F": {},
+        }
+
+
+def test_read_csv__spark__sql__expected_pandas_dataframe(df):
+    with NamedTemporaryFile(suffix=".csv") as csv:
+        df.to_csv(
+            path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
+        )
+
+        result = OasisSparkReader(
+            sql="SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'"
+        ).read_csv(csv.name)
+
+        assert isinstance(result, pd.DataFrame)
+
+        # spark has no concept of indexing, so it will essentially drop it hence, 2 being 0 below
+        # if we do need to retain indexing we will need to add it as column prior to sql
+        assert result.to_dict() == {
+            "A": {0: 1.0},
+            "B": {0: "2023-01-02"},
+            "C": {0: 1.0},
+            "D": {0: 3},
+            "E": {0: "test"},
+            "F": {0: "foo"},
+        }
+
+
+def test_read_csv__spark__sql__invalid_sql(df, caplog):
+    with NamedTemporaryFile(suffix=".csv") as csv:
+        df.to_csv(
+            path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
+        )
+
+        result = OasisSparkReader(sql="SELECT X FROM table").read_csv(csv.name)
+
+        assert not result
+        assert caplog.messages == ["Invalid SQL provided"]
+
+
+def test_read_csv__spark__sql__no_data(df, caplog):
+    with NamedTemporaryFile(suffix=".csv") as csv:
+        df.to_csv(
+            path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
+        )
+
+        result = OasisSparkReader(
+            sql="SELECT * FROM table WHERE E = 'tester'"
         ).read_csv(csv.name)
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
-            "a": {},
-            "b": {},
-            "c": {},
-            "d": {},
-            "e": {},
-            "f": {},
+            "A": {},
+            "B": {},
+            "C": {},
+            "D": {},
+            "E": {},
+            "F": {},
         }
