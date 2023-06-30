@@ -9,7 +9,14 @@ import pandas as pd
 def base_v(v):
     if isinstance(v, tuple) and hasattr(v, "_fields"):
         return type(v)(*[base_v(i) for i in v])
-    elif isinstance(v, (list, set, tuple, )):
+    elif isinstance(
+        v,
+        (
+            list,
+            set,
+            tuple,
+        ),
+    ):
         return type(v)(base_v(i) for i in v)
     elif isinstance(v, dict):
         return {base_v(k): base_v(_v) for k, _v in v.items()}
@@ -20,6 +27,7 @@ class WrappedMeta(type):
     def __getattr__(cls, item):
         res = getattr(cls.base, item)
         return wrap_result(res, cls.dataframe_class, cls.series_class)
+
 
 ###
 # the set of override functions to use in wrapped classes
@@ -69,7 +77,7 @@ def _rxor(self, other):
 
 
 def _invert(self):
-    return self.wrap_result(~ self.base_object)
+    return self.wrap_result(~self.base_object)
 
 
 def _add(self, other):
@@ -121,7 +129,7 @@ def _rmod(self, other):
 
 
 def _neg(self):
-    return self.wrap_result(- self.base_object)
+    return self.wrap_result(-self.base_object)
 
 
 def _gt(self, other):
@@ -267,8 +275,10 @@ class WrappedBase(metaclass=WrappedMeta):
 
 def wrap_result(res, dataframe_class, series_class):
     if isinstance(res, type):
+
         def wrapped_init(*args, **kwargs):
             return wrap_result(res(*args, **kwargs), dataframe_class, series_class)
+
         return wrapped_init
 
     if isinstance(res, WrappedBase):
@@ -298,23 +308,22 @@ def wrap_result(res, dataframe_class, series_class):
     # build a class to wrap all results.
     _wrapper = type(
         f"{type(res).__name__}Wrapper",
-        (WrappedBase, ),
-        {
-            k: overrides[k]
-            for k in dir(res) if k in overrides
-        }
+        (WrappedBase,),
+        {k: overrides[k] for k in dir(res) if k in overrides},
     )
     return _wrapper(res, dataframe_class, series_class)
 
 
 class ResultWrapper(WrappedBase):
-    BLANK_VALUES = {np.nan, '', None, pd.NA, pd.NaT}
+    BLANK_VALUES = {np.nan, "", None, pd.NA, pd.NaT}
 
     def __init__(self, data=None, **kwargs):
         data = base_v(data)
         processed_kwargs = {k: base_v(v) for k, v in kwargs.items()}
         super().__init__(
-            data if isinstance(data, self.base) else self.base(data=data, **processed_kwargs),
+            data
+            if isinstance(data, self.base)
+            else self.base(data=data, **processed_kwargs),
             self.dataframe_class,
             self.series_class,
         )
@@ -367,7 +376,9 @@ class BaseOasisSeries(ResultWrapper):
 
     def with_invalid_categories(self, valid_categories):
         s = self.base_object
-        split = self.wrap_result(s.astype("str").str.split(';').apply(pd.Series, 1).stack())
+        split = self.wrap_result(
+            s.astype("str").str.split(";").apply(pd.Series, 1).stack()
+        )
         valid = split.isin(set(valid_categories)) | split.blank()
         return self.wrap_result(split[~valid].index.droplevel(-1))
 
