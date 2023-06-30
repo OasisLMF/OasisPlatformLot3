@@ -1,7 +1,9 @@
 from copy import deepcopy
 
-from .base import BaseDfEngine, BaseOasisSeries, BaseOasisDataframe, wrap_result
 from pyspark import pandas
+
+from .base import (BaseDfEngine, BaseOasisDataframe, BaseOasisSeries,
+                   wrap_result)
 
 
 class SparkOasisSeries(BaseOasisSeries):

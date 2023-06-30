@@ -21,7 +21,7 @@ def configure(conf=None):
 
     _conf = conf or {
         "default": {
-            "path": "lot3.df_engine.base.BaseDfEngine",
+            "path": "lot3.df_reader.base.BaseDfEngine",
             "options": {},
         }
     }
