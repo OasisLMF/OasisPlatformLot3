@@ -6,8 +6,11 @@ import pandas as pd
 import pytest
 from pandas._testing import assert_frame_equal
 
-from lot3.df_reader.reader import (OasisDaskReader, OasisPandasReader,
-                                   OasisSparkReader)
+from lot3.df_reader.reader import (OasisDaskReaderParquet,
+                                   OasisPandasReaderParquet,
+                                   OasisSparkReaderParquet)
+
+READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet, OasisSparkReaderParquet]
 
 
 @pytest.fixture
@@ -29,14 +32,12 @@ def df():
     )
 
 
-@pytest.mark.parametrize(
-    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
-)
+@pytest.mark.parametrize("reader", READERS)
 def test_read_parquet__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = reader().read_parquet(parquet.name)
+        result = reader(parquet.name).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -54,9 +55,7 @@ def test_read_parquet__expected_pandas_dataframe(reader, df):
         }
 
 
-@pytest.mark.parametrize(
-    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
-)
+@pytest.mark.parametrize("reader", READERS)
 def test_read_parquet__df_filter__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
@@ -64,7 +63,7 @@ def test_read_parquet__df_filter__expected_pandas_dataframe(reader, df):
         def sample_filter(filter_df):
             return filter_df[filter_df["E"] == "test"]
 
-        result = reader(df_filters=[sample_filter]).read_parquet(parquet.name)
+        result = reader(parquet.name).filter([sample_filter]).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -77,20 +76,21 @@ def test_read_parquet__df_filter__expected_pandas_dataframe(reader, df):
         }
 
 
-@pytest.mark.parametrize(
-    "reader", [OasisPandasReader, OasisDaskReader, OasisSparkReader]
-)
+@pytest.mark.parametrize("reader", READERS)
 def test_read_parquet__df_filter__multiple__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = reader(
-            df_filters=[
-                lambda x: x[x["E"] == "test"],
-                lambda x: x[x["B"] == "2023-01-02"],
-            ]
-        ).read_parquet(parquet.name)
-
+        result = (
+            reader(parquet.name)
+            .filter(
+                [
+                    lambda x: x[x["E"] == "test"],
+                    lambda x: x[x["B"] == "2023-01-02"],
+                ]
+            )
+            .as_pandas()
+        )
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
             "A": {2: 1.0},
@@ -106,9 +106,11 @@ def test_read_parquet__dask__sql__expected_pandas_dataframe(df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisDaskReader(
-            sql="SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'"
-        ).read_parquet(parquet.name)
+        result = (
+            OasisDaskReaderParquet(parquet.name)
+            .sql("SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -125,9 +127,9 @@ def test_read_parquet__dask__sql__invalid_sql(df, caplog):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisDaskReader(sql="SELECT X FROM table").read_parquet(parquet.name)
+        OasisDaskReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
 
-        assert not result
+        # TODO catch validation/check empty df
         assert caplog.messages == ["Invalid SQL provided"]
 
 
@@ -135,9 +137,11 @@ def test_read_parquet__dask__sql__no_data(df, caplog):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisDaskReader(
-            sql="SELECT * FROM table WHERE E = 'tester'"
-        ).read_parquet(parquet.name)
+        result = (
+            OasisDaskReaderParquet(parquet.name)
+            .sql("SELECT * FROM table WHERE E = 'tester'")
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -154,9 +158,11 @@ def test_read_parquet__spark__sql__expected_pandas_dataframe(df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisSparkReader(
-            sql="SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'"
-        ).read_parquet(parquet.name)
+        result = (
+            OasisSparkReaderParquet(parquet.name)
+            .sql("SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
 
@@ -176,9 +182,11 @@ def test_read_parquet__spark__sql__invalid_sql(df, caplog):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisSparkReader(sql="SELECT X FROM table").read_parquet(parquet.name)
+        result = (
+            OasisSparkReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
+        )
 
-        assert not result
+        assert result.empty
         assert caplog.messages == ["Invalid SQL provided"]
 
 
@@ -186,9 +194,11 @@ def test_read_parquet__spark__sql__no_data(df, caplog):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = OasisSparkReader(
-            sql="SELECT * FROM table WHERE E = 'tester'"
-        ).read_parquet(parquet.name)
+        result = (
+            OasisSparkReaderParquet(parquet.name)
+            .sql("SELECT * FROM table WHERE E = 'tester'")
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
