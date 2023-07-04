@@ -1,16 +1,13 @@
 from tempfile import NamedTemporaryFile
-from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
-from pandas._testing import assert_frame_equal
 
 from lot3.df_reader.reader import (OasisDaskReaderParquet,
-                                   OasisPandasReaderParquet,
-                                   OasisSparkReaderParquet)
+                                   OasisPandasReaderParquet)
 
-READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet, OasisSparkReaderParquet]
+READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet]
 
 
 @pytest.fixture
@@ -139,63 +136,6 @@ def test_read_parquet__dask__sql__no_data(df, caplog):
 
         result = (
             OasisDaskReaderParquet(parquet.name)
-            .sql("SELECT * FROM table WHERE E = 'tester'")
-            .as_pandas()
-        )
-
-        assert isinstance(result, pd.DataFrame)
-        assert result.to_dict() == {
-            "A": {},
-            "B": {},
-            "C": {},
-            "D": {},
-            "E": {},
-            "F": {},
-        }
-
-
-def test_read_parquet__spark__sql__expected_pandas_dataframe(df):
-    with NamedTemporaryFile(suffix=".parquet") as parquet:
-        df.to_parquet(path=parquet.name, index=False)
-
-        result = (
-            OasisSparkReaderParquet(parquet.name)
-            .sql("SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
-            .as_pandas()
-        )
-
-        assert isinstance(result, pd.DataFrame)
-
-        # spark has no concept of indexing, so it will essentially drop it hence, 2 being 0 below
-        # if we do need to retain indexing we will need to add it as column prior to sql
-        assert result.to_dict() == {
-            "A": {0: 1.0},
-            "B": {0: pd.Timestamp("20230102")},
-            "C": {0: 1.0},
-            "D": {0: 3},
-            "E": {0: "test"},
-            "F": {0: "foo"},
-        }
-
-
-def test_read_parquet__spark__sql__invalid_sql(df, caplog):
-    with NamedTemporaryFile(suffix=".parquet") as parquet:
-        df.to_parquet(path=parquet.name, index=False)
-
-        result = (
-            OasisSparkReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
-        )
-
-        assert result.empty
-        assert caplog.messages == ["Invalid SQL provided"]
-
-
-def test_read_parquet__spark__sql__no_data(df, caplog):
-    with NamedTemporaryFile(suffix=".parquet") as parquet:
-        df.to_parquet(path=parquet.name, index=False)
-
-        result = (
-            OasisSparkReaderParquet(parquet.name)
             .sql("SELECT * FROM table WHERE E = 'tester'")
             .as_pandas()
         )
