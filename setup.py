@@ -44,7 +44,10 @@ setup(
     install_requires=[
         "dask",
         "dask-sql",
-        "pyspark",
+        "geopandas",
+        "dask_geopandas",
+        "pyogrio",
+        "geodatasets",  # for testing only
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
