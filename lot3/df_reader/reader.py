@@ -34,22 +34,28 @@ class OasisReader:
         self.df = None
         self.applied_sql = False
         self.applied_filters = False
-        self.read = False
+        self.has_read = False
         self.reader_args = args
         self.reader_kwargs = kwargs
 
+    def read_csv(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
+    def read_parquet(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
     def _read(self):
-        if not self.read:
-            if hasattr(self, "read_csv"):
-                self.read = True
-                return self.read_csv(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
-            elif hasattr(self, "read_parquet"):
-                self.read = True
-                return self.read_parquet(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
+        if not self.has_read:
+            extension = pathlib.Path(self.filename_or_buffer).suffix
+
+            if extension == ".parquet":
+                self.has_read = True
+                return self.read_parquet(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+            else:
+                # assume the file is csv if not parquet
+                self.has_read = True
+                return self.read_csv(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+        return self
 
     def filter(self, filters):
         if filters:
@@ -75,22 +81,25 @@ class OasisReader:
 
     def as_pandas(self):
         self._read()
-
-
-class OasisPandasReader(OasisReader):
-    def as_pandas(self):
-        super().as_pandas()
         return self.df
 
 
-class OasisPandasReaderCSV(OasisPandasReader):
+class OasisPandasReader(OasisReader):
     def read_csv(self, *args, **kwargs):
+        _args = args
+        _kwargs = kwargs
         self.df = pd.read_csv(*args, **kwargs)
+
+    def read_parquet(self, *args, **kwargs):
+        self.df = pd.read_parquet(*args, **kwargs)
+
+
+class OasisPandasReaderCSV(OasisPandasReader):
+    pass
 
 
 class OasisPandasReaderParquet(OasisPandasReader):
-    def read_parquet(self, *args, **kwargs):
-        self.df = pd.read_parquet(*args, **kwargs)
+    pass
 
 
 class OasisDaskReader(OasisReader):

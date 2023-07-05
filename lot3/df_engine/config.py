@@ -1,6 +1,6 @@
 import importlib
 
-from lot3.df_engine import BaseDfEngine
+from lot3.df_engine.base import BaseDfEngine
 
 _conf = {}
 _engines = {}
@@ -21,7 +21,7 @@ def configure(conf=None):
 
     _conf = conf or {
         "default": {
-            "path": "lot3.df_reader.base.BaseDfEngine",
+            "path": "lot3.df_engine.base.BaseDfEngine",
             "options": {},
         }
     }
