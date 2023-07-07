@@ -41,27 +41,35 @@ class OasisReader:
         self.df = None
         self.applied_sql = False
         self.applied_filters = False
+        self.has_read = False
         self.applied_geo = False
         self.read = False
         self.reader_args = args
         self.reader_kwargs = kwargs
 
+    def read_csv(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
+    def read_parquet(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
     def _read(self):
-        if not self.read:
-            if hasattr(self, "read_csv"):
-                self.read = True
-                self.read_csv(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
-            elif hasattr(self, "read_parquet"):
-                self.read = True
-                self.read_parquet(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
+        if not self.has_read:
+            extension = pathlib.Path(self.filename_or_buffer).suffix
+
+            if extension == ".parquet":
+                self.has_read = True
+                self.read_parquet(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+            else:
+                # assume the file is csv if not parquet
+                self.has_read = True
+                self.read_csv(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
 
             if self.shape_filename_path:
                 self.applied_geo = True
                 self.apply_geo(*self.reader_args, **self.reader_kwargs)
+
+        return self
 
     def filter(self, filters):
         if filters:
@@ -90,12 +98,17 @@ class OasisReader:
 
     def as_pandas(self):
         self._read()
+        return self.df
 
 
 class OasisPandasReader(OasisReader):
-    def as_pandas(self):
-        super().as_pandas()
-        return self.df
+    def read_csv(self, *args, **kwargs):
+        _args = args
+        _kwargs = kwargs
+        self.df = pd.read_csv(*args, **kwargs)
+
+    def read_parquet(self, *args, **kwargs):
+        self.df = pd.read_parquet(*args, **kwargs)
 
     def apply_geo(self, *args, **kwargs):
         """
@@ -130,13 +143,11 @@ class OasisPandasReader(OasisReader):
 
 
 class OasisPandasReaderCSV(OasisPandasReader):
-    def read_csv(self, *args, **kwargs):
-        self.df = pd.read_csv(*args, **kwargs)
+    pass
 
 
 class OasisPandasReaderParquet(OasisPandasReader):
-    def read_parquet(self, *args, **kwargs):
-        self.df = pd.read_parquet(*args, **kwargs)
+    pass
 
 
 class OasisDaskReader(OasisReader):
@@ -201,8 +212,6 @@ class OasisDaskReader(OasisReader):
         super().as_pandas()
         return self.df.compute()
 
-
-class OasisDaskReaderCSV(OasisDaskReader):
     def read_csv(self, filename_or_buffer, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.
         dask_safe_kwargs = kwargs.copy()
@@ -222,8 +231,6 @@ class OasisDaskReaderCSV(OasisDaskReader):
 
         self.df = dd.read_csv(filename_or_buffer, *args, **dask_safe_kwargs)
 
-
-class OasisDaskReaderParquet(OasisDaskReader):
     def read_parquet(self, filename_or_buffer, *args, **kwargs):
         self.df = dd.read_parquet(filename_or_buffer, *args, **kwargs)
 
@@ -232,6 +239,14 @@ class OasisDaskReaderParquet(OasisDaskReader):
         category_cols = self.df.select_dtypes(include="category").columns
         for col in category_cols:
             self.df[col] = self.df[col].astype(str)
+
+
+class OasisDaskReaderCSV(OasisDaskReader):
+    pass
+
+
+class OasisDaskReaderParquet(OasisDaskReader):
+    pass
 
 
 # Spark reader paused.
