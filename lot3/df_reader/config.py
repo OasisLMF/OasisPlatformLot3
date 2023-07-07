@@ -5,29 +5,9 @@ from typing import TypedDict, Dict, NotRequired, Union
 
 from .reader import OasisReader
 
-_conf = {}
-_readers = {}
-
 
 class ConfigError(Exception):
     pass
-
-
-def reset():
-    global _conf, _readers
-    _conf = {}
-    _readers = {}
-
-
-def configure(conf=None):
-    global _conf
-
-    _conf = conf or _conf or {
-        "default": {
-            "path": "lot3.df_reader.reader.OasisPandasReader",
-            "options": {},
-        }
-    }
 
 
 class ResolvedReaderEngineConfig(TypedDict):
@@ -36,7 +16,7 @@ class ResolvedReaderEngineConfig(TypedDict):
 
 
 class ResolvedReaderConfig(TypedDict):
-    path: str
+    filepath: str
     engine: ResolvedReaderEngineConfig
 
 
@@ -46,14 +26,14 @@ class InputReaderEngineConfig(TypedDict):
 
 
 class InputReaderConfig(TypedDict):
-    path: str
+    filepath: str
     engine: NotRequired[Union[str, InputReaderEngineConfig]]
 
 
 def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:
     if isinstance(config, (str, Path)) or hasattr(config, "read"):
         config: dict = {
-            "path": config,
+            "filepath": config,
         }
     elif not isinstance(config, dict):
         raise ConfigError(f"df_reader config must be a string or dictionary: {config}")
@@ -61,8 +41,8 @@ def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:
         config: dict
         config = deepcopy(config)
 
-    if "path" not in config:
-        raise ConfigError(f"df_reader config must provide a 'path' property: {config}")
+    if "filepath" not in config:
+        raise ConfigError(f"df_reader config must provide a 'filepath' property: {config}")
 
     if "engine" not in config:
         config["engine"] = {
@@ -86,7 +66,7 @@ def get_df_reader(config, *args, **kwargs):
 
     path_split = config["engine"]["path"].rsplit(".", 1)
     if len(path_split) != 2:
-        raise ConfigError(f"'path' found in the df_reader config is not valid: {config['engine']['path']}")
+        raise ConfigError(f"'filepath' found in the df_reader config is not valid: {config['engine']['path']}")
 
     module_path, cls_name = path_split
     module = importlib.import_module(module_path)
@@ -95,4 +75,4 @@ def get_df_reader(config, *args, **kwargs):
     if cls is not OasisReader and OasisReader not in cls.__bases__:
         raise ConfigError(f"'{cls.__name__}' does not extend 'OasisReader'")
 
-    return cls(config["path"], *args, **kwargs, **config["engine"]["options"])
+    return cls(config["filepath"], *args, **kwargs, **config["engine"]["options"])
