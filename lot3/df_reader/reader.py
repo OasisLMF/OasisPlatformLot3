@@ -5,7 +5,6 @@
 
 import io
 import logging
-import os
 import pathlib
 
 import dask_geopandas as dgpd
@@ -15,6 +14,8 @@ from dask import dataframe as dd
 from dask_sql import Context
 from dask_sql.utils import ParsingException
 
+from .exceptions import InvalidSQLException
+
 logger = logging.getLogger("lot3.df_reader.reader")
 
 
@@ -22,7 +23,7 @@ class OasisReader:
     """
     Base reader.
 
-    as_pandas(), sql() & filter() can all be chained with self.read controlling whether the base
+    as_pandas(), sql() & filter() can all be chained with self.has_read controlling whether the base
     read (read_csv/read_parquet) needs to be triggered. This is because in the case of spark
     we need to read differently depending on if the intention is to do sql or filter.
     """
@@ -41,27 +42,37 @@ class OasisReader:
         self.df = None
         self.applied_sql = False
         self.applied_filters = False
+        self.has_read = False
         self.applied_geo = False
-        self.read = False
         self.reader_args = args
         self.reader_kwargs = kwargs
 
+    def read_csv(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
+    def read_parquet(self, filepath, *args, **kwargs):
+        raise NotImplementedError()
+
     def _read(self):
-        if not self.read:
-            if hasattr(self, "read_csv"):
-                self.read = True
-                self.read_csv(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
-            elif hasattr(self, "read_parquet"):
-                self.read = True
-                self.read_parquet(
-                    self.filename_or_buffer, *self.reader_args, **self.reader_kwargs
-                )
+        if not self.has_read:
+            if hasattr(self.filename_or_buffer, "name"):
+                extension = pathlib.Path(self.filename_or_buffer.name).suffix
+            else:
+                extension = pathlib.Path(self.filename_or_buffer).suffix
+
+            if extension == ".parquet":
+                self.has_read = True
+                self.read_parquet(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+            else:
+                # assume the file is csv if not parquet
+                self.has_read = True
+                self.read_csv(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
 
             if self.shape_filename_path:
                 self.applied_geo = True
                 self.apply_geo(*self.reader_args, **self.reader_kwargs)
+
+        return self
 
     def filter(self, filters):
         if filters:
@@ -90,12 +101,17 @@ class OasisReader:
 
     def as_pandas(self):
         self._read()
+        return self.df
 
 
 class OasisPandasReader(OasisReader):
-    def as_pandas(self):
-        super().as_pandas()
-        return self.df
+    def read_csv(self, *args, **kwargs):
+        _args = args
+        _kwargs = kwargs
+        self.df = pd.read_csv(*args, **kwargs)
+
+    def read_parquet(self, *args, **kwargs):
+        self.df = pd.read_parquet(*args, **kwargs)
 
     def apply_geo(self, *args, **kwargs):
         """
@@ -130,13 +146,11 @@ class OasisPandasReader(OasisReader):
 
 
 class OasisPandasReaderCSV(OasisPandasReader):
-    def read_csv(self, *args, **kwargs):
-        self.df = pd.read_csv(*args, **kwargs)
+    pass
 
 
 class OasisPandasReaderParquet(OasisPandasReader):
-    def read_parquet(self, *args, **kwargs):
-        self.df = pd.read_parquet(*args, **kwargs)
+    pass
 
 
 class OasisDaskReader(OasisReader):
@@ -173,11 +187,11 @@ class OasisDaskReader(OasisReader):
     def apply_sql(self, sql):
         try:
             c = Context()
-            # TODO should the table name be the csv filename, seems no harm in that unless
-            # we have same name csv's elsewhere.
-            table_name = os.path.basename(self.filename_or_buffer).split(".")[0]
-            c.create_table(table_name, self.df)
-            formatted_sql = sql.replace("table", table_name)
+            # Initially this was the filename, but some filenames are invalid for the table,
+            # is it ok to call it the same name all the time? Mapped to DaskDataTable in case
+            # we need to change this.
+            c.create_table("DaskDataTable", self.df)
+            formatted_sql = sql.replace("table", "DaskDataTable")
 
             pre_sql_columns = self.df.columns
 
@@ -191,18 +205,12 @@ class OasisDaskReader(OasisReader):
                 x for x in pre_sql_columns if x.lower() in self.df.columns
             ]
         except ParsingException:
-            # TODO - validation? need to store images for display when this is hooked up. Probably bubble
-            # this up to a generic sql message
-            logger.warning("Invalid SQL provided")
-            # temp until we decide on handling, i.e don't return full data if it fails.
-            self.df = dd.DataFrame.from_dict({}, npartitions=1)
+            raise InvalidSQLException
 
     def as_pandas(self):
         super().as_pandas()
         return self.df.compute()
 
-
-class OasisDaskReaderCSV(OasisDaskReader):
     def read_csv(self, filename_or_buffer, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.
         dask_safe_kwargs = kwargs.copy()
@@ -213,17 +221,16 @@ class OasisDaskReaderCSV(OasisDaskReader):
             filename_or_buffer = str(filename_or_buffer)
 
         if isinstance(filename_or_buffer, io.TextIOWrapper) or isinstance(
-            filename_or_buffer, io.BufferedReader
+                filename_or_buffer, io.BufferedReader
         ):
             filename_or_buffer = filename_or_buffer.name
 
-        if filename_or_buffer.endswith(".zip"):
-            kwargs["compression"] = None
+        # django files
+        if hasattr(filename_or_buffer, "path"):
+            filename_or_buffer = filename_or_buffer.path
 
         self.df = dd.read_csv(filename_or_buffer, *args, **dask_safe_kwargs)
 
-
-class OasisDaskReaderParquet(OasisDaskReader):
     def read_parquet(self, filename_or_buffer, *args, **kwargs):
         self.df = dd.read_parquet(filename_or_buffer, *args, **kwargs)
 
@@ -232,6 +239,14 @@ class OasisDaskReaderParquet(OasisDaskReader):
         category_cols = self.df.select_dtypes(include="category").columns
         for col in category_cols:
             self.df[col] = self.df[col].astype(str)
+
+
+class OasisDaskReaderCSV(OasisDaskReader):
+    pass
+
+
+class OasisDaskReaderParquet(OasisDaskReader):
+    pass
 
 
 # Spark reader paused.
