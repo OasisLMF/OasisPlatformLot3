@@ -93,12 +93,6 @@ class OasisReader:
             self.apply_sql(sql)
         return self
 
-    def apply_sql(self, sql):
-        pass
-
-    def apply_geo(self, *args, **kwargs):
-        pass
-
     def as_pandas(self):
         self._read()
         return self.df
