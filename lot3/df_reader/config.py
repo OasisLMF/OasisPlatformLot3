@@ -1,7 +1,8 @@
 import importlib
 from copy import deepcopy
 from pathlib import Path
-from typing import TypedDict, Dict, NotRequired, Union
+from typing import TypedDict, Dict, Union
+from typing_extensions import NotRequired
 
 from .reader import OasisReader
 
