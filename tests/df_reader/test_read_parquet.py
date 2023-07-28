@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from lot3.df_reader.exceptions import InvalidSQLException
 from lot3.df_reader.reader import (OasisDaskReaderParquet,
                                    OasisPandasReaderParquet)
 
@@ -120,17 +121,15 @@ def test_read_parquet__dask__sql__expected_pandas_dataframe(df):
         }
 
 
-def test_read_parquet__dask__sql__invalid_sql(df, caplog):
+def test_read_parquet__dask__sql__invalid_sql(df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        OasisDaskReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
-
-        # TODO catch validation/check empty df
-        assert caplog.messages == ["Invalid SQL provided"]
+        with pytest.raises(InvalidSQLException):
+            OasisDaskReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
 
 
-def test_read_parquet__dask__sql__no_data(df, caplog):
+def test_read_parquet__dask__sql__no_data(df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
