@@ -46,11 +46,20 @@ def _test_sql(df, sql):
     "sql",
     (
         "SELECT * FROM table",
+        "SELECT A FROM table",
         "SELECT * FROM table WHERE E = 1",
         "SELECT * FROM table WHERE E = 1 and A = 2",
         "SELECT * FROM table WHERE A in (1,2)",
-        "SELECT C FROM table WHERE C BETWEEN 1 AND 2",
+        "SELECT * FROM table WHERE C BETWEEN 1 AND 2",
         "SELECT * FROM table ORDER BY A",
+        'SELECT COUNT(A) as "count_A" FROM table',
+        'SELECT UPPER(E) FROM table',
+        'SELECT LOWER(E) FROM table',
+        'SELECT CONCAT(A, B) as "count_A" FROM table',
+        'SELECT E, SUM(A) AS "sum_A" FROM table GROUP BY E',
+        'SELECT E, AVG(A) AS "avg_A" FROM table GROUP BY E',
+        'SELECT E, MIN(A) AS "min_A" FROM table GROUP BY E',
+        'SELECT E, MAX(A) AS "max_A" FROM table GROUP BY E',
     ),
 )
 def test_sql__validity(sql, df):
@@ -65,6 +74,9 @@ def test_sql__validity(sql, df):
         "SELECT Z FROM table",  # incorrect field
         "X",
         "SELECT SUM(Z) FROM table",  # incorrect field
+        'SELECT UPPER(A) FROM table',  # non char field
+        'SELECT LOWER(A) FROM table',  # non char field
+
     ),
 )
 def test_sql__validity__not(sql, df):
@@ -72,7 +84,7 @@ def test_sql__validity__not(sql, df):
         _test_sql(df, sql)
 
 
-def test_sql__where(df):
+def test_sql__result__where(df):
     result = _test_sql(df, "SELECT * FROM table WHERE E = 'test'")
     assert isinstance(result, pd.DataFrame)
     assert result.to_dict() == {
@@ -85,7 +97,7 @@ def test_sql__where(df):
     }
 
 
-def test_sql__where_like(df):
+def test_sql__result__where_like(df):
     result = _test_sql(df, "SELECT * FROM table WHERE E LIKE 'te%'")
     assert isinstance(result, pd.DataFrame)
     assert result.to_dict() == {
@@ -98,7 +110,7 @@ def test_sql__where_like(df):
     }
 
 
-def test_sql__where_null():
+def test_sql__result__where_null():
     df = pd.DataFrame(
         {
             "A": [1, None],
@@ -110,19 +122,19 @@ def test_sql__where_null():
     assert result.to_dict() == {"A": {0: 1.0}, "B": {0: "foo"}}
 
 
-def test_sql__where_in(df):
+def test_sql__result__where_in(df):
     result = _test_sql(df, "SELECT C FROM table WHERE C in (1,2, 3)")
     assert isinstance(result, pd.DataFrame)
     assert result.to_dict() == {"C": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0}}
 
 
-def test_sql__where_between(df):
+def test_sql__result__where_between(df):
     result = _test_sql(df, "SELECT C FROM table WHERE C BETWEEN 1 AND 3")
     assert isinstance(result, pd.DataFrame)
     assert result.to_dict() == {"C": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0}}
 
 
-def test_sql__where_and(df):
+def test_sql__result__where_and(df):
     result = _test_sql(df, "SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
     assert isinstance(result, pd.DataFrame)
     assert result.to_dict() == {
@@ -135,7 +147,7 @@ def test_sql__where_and(df):
     }
 
 
-def test_sql__order_by__asc(df):
+def test_sql__result__order_by__asc(df):
     result = _test_sql(df, "SELECT * FROM table ORDER BY E")
     assert result.iloc[0].to_dict() == {
         "A": 1.0,
@@ -147,7 +159,7 @@ def test_sql__order_by__asc(df):
     }
 
 
-def test_sql__order_by__desc(df):
+def test_sql__result__order_by__desc(df):
     result = _test_sql(df, "SELECT * FROM table ORDER BY E DESC")
     assert result.iloc[0].to_dict() == {
         "A": 1.0,
@@ -159,7 +171,7 @@ def test_sql__order_by__desc(df):
     }
 
 
-def test_sql__order_by__multiple(df):
+def test_sql__result__order_by__multiple(df):
     result = _test_sql(df, "SELECT * FROM table ORDER BY E, D DESC")
     assert result.iloc[0].to_dict() == {
         "A": 1.0,
@@ -179,31 +191,31 @@ def test_sql__order_by__multiple(df):
     }
 
 
-def test_sql__alias(df):
+def test_sql__result__alias(df):
     result = _test_sql(df, 'SELECT A as "else"  FROM table')
     assert result.to_dict() == {
         "else": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0}
     }
 
 
-def test_sql__cast(df):
+def test_sql__result__cast(df):
     result = _test_sql(df, 'SELECT UPPER(E) as "upper_E" FROM table')
     assert result.to_dict() == {
         "upper_E": {0: "TEST", 1: "TRAIN", 2: "TEST", 3: "TRAIN", 4: "ELSE", 5: "OTHER"}
     }
 
 
-def test_sql__aggregation__count(df):
+def test_sql__result__aggregation__count(df):
     result = _test_sql(df, 'SELECT COUNT(A) as "count_A" FROM table')
     assert result.to_dict() == {"count_A": {0: 6}}
 
 
-def test_sql__aggregation__count_group(df):
+def test_sql__result__aggregation__count_group(df):
     result = _test_sql(df, 'SELECT COUNT(A) as "count_A" FROM table GROUP BY E')
     assert result.to_dict() == {"count_A": {0: 2, 1: 2, 2: 1, 3: 1}}
 
 
-def test_sql__aggregation__sum(df):
+def test_sql__result__aggregation__sum(df):
     result = _test_sql(df, 'SELECT E, SUM(A) AS "sum_A" FROM table GROUP BY E')
     assert result.to_dict() == {
         "E": {0: "test", 1: "train", 2: "else", 3: "other"},
