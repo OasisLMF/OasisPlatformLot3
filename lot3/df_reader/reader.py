@@ -195,9 +195,18 @@ class OasisDaskReader(OasisReader):
                 config_options={"sql.identifier.case_sensitive": False},
             )
             # which means we then need to map the columns back to the original
-            self.df.columns = [
-                x for x in pre_sql_columns if x.lower() in self.df.columns
-            ]
+            # and allow for any aggregations to be retained
+            validated_columns = []
+            for v in self.df.columns:
+                pre = False
+                for x in pre_sql_columns:
+                    if v.lower() == x.lower():
+                        validated_columns.append(x)
+                        pre = True
+
+                if not pre:
+                    validated_columns.append(v)
+            self.df.columns = validated_columns
         except ParsingException:
             raise InvalidSQLException
 
