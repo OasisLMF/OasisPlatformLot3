@@ -1,7 +1,8 @@
 import importlib
 from copy import deepcopy
 from pathlib import Path
-from typing import TypedDict, Dict, NotRequired, Union
+# from typing import TypedDict, Dict, NotRequired, Union
+from typing import TypedDict, Dict, Optional, Union
 
 from .reader import OasisReader
 
@@ -21,13 +22,13 @@ class ResolvedReaderConfig(TypedDict):
 
 
 class InputReaderEngineConfig(TypedDict):
-    path: NotRequired[str]
-    options: NotRequired[Dict[str, any]]
+    path: Optional[str]
+    options: Optional[Dict[str, any]]
 
 
 class InputReaderConfig(TypedDict):
     filepath: str
-    engine: NotRequired[Union[str, InputReaderEngineConfig]]
+    engine: Optional[Union[str, InputReaderEngineConfig]]
 
 
 def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:
