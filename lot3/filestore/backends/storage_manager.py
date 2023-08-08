@@ -1,3 +1,4 @@
+import contextlib
 import io
 import logging
 import os
@@ -39,6 +40,7 @@ class BaseStorageConnector(object):
         self.settings = setting
         self.logger = logger or logging.getLogger()
         self.fsspec_filesystem_class: Type[fsspec.AbstractFileSystem] = fsspec_filesystem_class or fsspec.filesystem('file')
+        self._fs = None
 
     def _get_unique_filename(self, suffix=""):
         """ Returns a unique name
@@ -408,10 +410,24 @@ class BaseStorageConnector(object):
         filename = filename or self._get_unique_filename(suffix)
         return filename, str(Path(self.media_root, filename))
 
-    def _get_fsspec_storage_options(self):
+    def get_fsspec_storage_options(self):
         return {}
 
+    @property
+    def fs(self) -> fsspec.AbstractFileSystem:
+        if not self._fs:
+            self._fs = self.fsspec_filesystem_class(
+                **self.get_fsspec_storage_options()
+            )
+        return self._fs
+
     def exists(self, path):
-        return self.fsspec_filesystem_class(
-            **self._get_fsspec_storage_options()
-        ).exists(path)
+        return self.fs.exists(path)
+
+    def isfile(self, path):
+        return self.fs.isfile(path)
+
+    @contextlib.contextmanager
+    def open(self, path, *args, **kwargs):
+        with self.fs.open(path, *args, **kwargs) as f:
+            yield f

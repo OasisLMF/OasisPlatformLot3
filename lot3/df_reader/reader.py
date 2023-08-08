@@ -102,8 +102,8 @@ class OasisReader:
     def apply_geo(self, *args, **kwargs):
         pass
 
-    def exists(self, path):
-        raise NotImplementedError
+    def query(self, fn):
+        return fn(self.df)
 
     def as_pandas(self):
         self._read()
