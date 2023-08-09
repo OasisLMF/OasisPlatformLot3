@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import io
 import logging
 import os
@@ -6,7 +7,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Type
+from typing import Type, Optional, Tuple, Union
 
 import fsspec
 from pathlib2 import Path
@@ -31,15 +32,14 @@ class BaseStorageConnector(object):
     `server` and `worker` containers
     """
 
-    def __init__(self, setting, logger=None, fsspec_filesystem_class=None):
+    storage_connector: str
+    fsspec_filesystem_class: Type[fsspec.AbstractFileSystem]
 
+    def __init__(self, cache_dir: Union[str, None] = '/tmp/data-cache', logger=None):
         # Use for caching files across multiple runs, set value 'None' or 'False' to disable
-        self.cache_root = setting.get('worker', 'CACHE_DIR', fallback='/tmp/data-cache')
-        self.media_root = setting.get('worker', 'MEDIA_ROOT')
-        self.storage_connector = 'FS-SHARE'
-        self.settings = setting
+        self.cache_root = cache_dir
+
         self.logger = logger or logging.getLogger()
-        self.fsspec_filesystem_class: Type[fsspec.AbstractFileSystem] = fsspec_filesystem_class or fsspec.filesystem('file')
         self._fs = None
 
     def _get_unique_filename(self, suffix=""):
@@ -54,25 +54,6 @@ class BaseStorageConnector(object):
         :rtype str
         """
         return "{}.{}".format(uuid.uuid4().hex, suffix)
-
-    def _is_locally_stored(self, fname):
-        """ Check if file is stored in media root
-        Parameters
-        ----------
-        :param fname: filename to check
-        :type fname: str
-        :return: `True` if URL otherwise `False`
-        :rtype boolean
-        """
-        if not isinstance(fname, str):
-            return False
-        return os.path.isfile(os.path.join(
-            self.media_root,
-            fname
-        ))
-
-    def _is_stored(self, fname):
-        return self._is_locally_stored(fname)
 
     def _is_valid_url(self, url):
         """ Check if a String is a valid url
@@ -91,106 +72,10 @@ class BaseStorageConnector(object):
         else:
             return False
 
-    def _store_file(self, file_path, storage_fname=None, storage_subdir='', suffix=None, **kwargs):
-        """ Copy a file to `media_root`
-
-        Places the file in `self.media_root` which is the shared storage location
-
-        Parameters
-        ----------
-        :param file_path: The path to the file to store.
-        :type  file_path: str
-
-        :param storage_fname: Set the name of stored file, instead of uuid
-        :type  storage_fname: str
-
-        :param storage_subdir: Store object in given sub directory
-        :type  storage_subdir: str
-
-        :param suffix: Set the filename extension
-        :type  suffix: str
-
-        :return: The reference to the file in storage
-        :rtype str
-        """
-        ext = file_path.split('.')[-1] if not suffix else suffix
-        storage_dir = os.path.join(self.media_root, storage_subdir)
-        store_reference = storage_fname if storage_fname else self._get_unique_filename(ext)
-
-        os.makedirs(storage_dir, exist_ok=True)
-        stored_fp = os.path.join(storage_dir, store_reference)
-
-        self.logger.info('Store file: {} -> {}'.format(file_path, stored_fp))
-        shutil.copyfile(file_path, stored_fp)
-        return os.path.join(storage_subdir, store_reference)
-
-    def _store_dir(self, directory_path, storage_fname=None, storage_subdir='', suffix=None, arcname=None, **kwargs):
-        """ Compress and store a directory
-
-        Creates a compressed .tar.gz of all files under `directory_path`
-        Then copies it to `self.media_root`
-
-        Parameters
-        ----------
-        :param directory_path: Path to a directory for upload
-        :type  directory_path: str
-
-        :param suffix: Set the filename extension
-                       defaults to `tar.gz`
-        :type suffix: str
-
-        :param storage_fname: Set the name of stored file, instead of uuid
-        :type  storage_fname: str
-
-        :param storage_subdir: Store object in given sub directory
-        :type  storage_subdir: str
-
-        :param arcname: If given, `arcname' set an alternative
-                        name for the file in the archive.
-        :type arcname: str
-
-        :return: The reference to the file in storage
-        :rtype str
-        """
-        ext = 'tar.gz' if not suffix else suffix
-        storage_dir = os.path.join(self.media_root, storage_subdir)
-        store_reference = storage_fname if storage_fname else self._get_unique_filename(ext)
-        os.makedirs(storage_dir, exist_ok=True)
-
-        stored_fp = os.path.join(storage_dir, store_reference)
-        self.compress(stored_fp, directory_path, arcname)
-        self.logger.info('Store dir: {} -> {}'.format(directory_path, stored_fp))
-        return os.path.join(storage_subdir, store_reference)
-
-    def _fetch_file(self, reference, output_path, subdir):
-        fpath = os.path.join(
-            self.media_root,
-            subdir,
-            os.path.basename(reference)
-        )
-        if os.path.isfile(fpath):
-            logging.info('Get shared file: {}'.format(fpath))
-            if os.path.isdir(output_path):
-                shutil.copyfile(
-                    fpath,
-                    os.path.join(output_path, os.path.basename(fpath))
-                )
-            else:
-                shutil.copyfile(fpath, output_path)
-            return os.path.abspath(fpath)
-
-        else:
-            raise MissingInputsException(fpath)
-
-    def filepath(self, reference):
+    def filepath(self, reference) -> str:
         """ return the absolute filepath 
         """
-        fpath = os.path.join(
-            self.media_root,
-            os.path.basename(reference)
-        )
-        logging.info('Get shared filepath: {}'.format(reference))
-        return os.path.abspath(fpath)
+        raise NotImplementedError
 
     def extract(self, archive_fp, directory, storage_subdir=''):
         """ Extract tar file
@@ -206,9 +91,7 @@ class BaseStorageConnector(object):
         :param storage_subdir: Store object in given sub directory
         :type  storage_subdir: str
         """
-        temp_dir = tempfile.TemporaryDirectory()
-        try:
-            temp_dir_path = temp_dir.__enter__()
+        with tempfile.TemporaryDirectory() as temp_dir_path:
             local_archive_path = self.get(
                 archive_fp,
                 os.path.join(temp_dir_path, os.path.basename(archive_fp)),
@@ -216,8 +99,6 @@ class BaseStorageConnector(object):
             )
             with tarfile.open(local_archive_path) as f:
                 f.extractall(directory)
-        finally:
-            temp_dir.cleanup()
 
     def compress(self, archive_fp, directory, arcname=None):
         """ Compress a directory
@@ -237,6 +118,24 @@ class BaseStorageConnector(object):
         arcname = arcname if arcname else '/'
         with tarfile.open(archive_fp, 'w:gz') as tar:
             tar.add(directory, arcname=arcname)
+
+    def with_cache(self, callback, fname, target):
+        # Check and copy file if cached
+        if self.cache_root:
+            cached_file = os.path.join(self.cache_root, fname)
+            if os.path.isfile(cached_file):
+                logging.info('Get from Cache: {}'.format(fname))
+                shutil.copyfile(cached_file, target)
+                return os.path.abspath(target)
+
+        callback()
+
+        # Store in cache if enabled
+        if self.cache_root:
+            os.makedirs(self.cache_root, exist_ok=True)
+            shutil.copyfile(target, cached_file)
+
+        return os.path.abspath(target)
 
     def get(self, reference, output_path="", subdir='', required=False):
         """ Retrieve stored object
@@ -268,6 +167,8 @@ class BaseStorageConnector(object):
             else:
                 return None
 
+        target = os.path.join(output_path, subdir) if subdir else output_path
+
         # Download if URL ref
         if self._is_valid_url(reference):
             response = urlopen(reference)
@@ -275,42 +176,35 @@ class BaseStorageConnector(object):
             header_fname = response.headers.get('Content-Disposition', '').split('filename=')[-1]
             fname = header_fname if header_fname else os.path.basename(urlparse(reference).path)
 
-            if os.path.isdir(output_path):
-                fpath = os.path.join(output_path, fname)
+            if os.path.isdir(target):
+                target = os.path.join(output_path, fname)
             else:
-                fpath = output_path
-
-            # Check and copy file if cached
-            if self.cache_root:
-                cached_file = os.path.join(self.cache_root, fname)
-                if os.path.isfile(cached_file):
-                    logging.info('Get from Cache: {}'.format(fname))
-                    shutil.copyfile(cached_file, fpath)
-                    return os.path.abspath(fpath)
+                target = output_path
 
             # Download if not cached
-            os.makedirs(os.path.dirname(fpath), exist_ok=True)
-            with io.open(fpath, 'w+b') as f:
-                f.write(fdata)
-                logging.info('Get from URL: {}'.format(fname))
+            def download_content():
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with io.open(target, 'w+b') as f:
+                    f.write(fdata)
+                    logging.info('Get from URL: {}'.format(fname))
+            return self.with_cache(
+                download_content,
+                fname,
+                target,
+            )
+        else:
+            file_path = self.filepath(reference)
 
-            # Store in cache if enabled
-            if self.cache_root:
-                os.makedirs(self.cache_root, exist_ok=True)
-                shutil.copyfile(fpath, cached_file)
-            return os.path.abspath(fpath)
-
-        # return local file
-        if self._is_locally_stored(reference):
-            return self._fetch_file(reference, output_path, subdir)
-
-        # current
-        if self._is_stored(reference):
-            if os.path.isdir(output_path):
-                fpath = os.path.join(output_path, os.path.basename(reference))
+            if self.fs.isdir(target):
+                target = os.path.join(target, reference)
             else:
-                fpath = output_path
-            return self._fetch_file(reference, fpath)
+                target = target
+
+            return self.with_cache(
+                lambda: self.fs.get(file_path, target),
+                reference,
+                target,
+            )
 
     def put(self, reference, filename=None, subdir='', suffix=None, arcname=None):
         """ Place object in storage
@@ -343,24 +237,34 @@ class BaseStorageConnector(object):
         """
         if not reference:
             return None
+
+        ext = 'tar.gz' if not suffix else suffix
+        filename = filename if filename else self._get_unique_filename(ext)
+        storage_path = os.path.join(subdir, filename) if subdir else filename
+
+        # make any sub directories in teh storage if necessary
+        if subdir:
+            self.fs.mkdirs(subdir, exist_ok=True)
+
         if os.path.isfile(reference):
-            return self._store_file(
-                reference,
-                storage_fname=filename,
-                storage_subdir=subdir,
-                suffix=suffix,
-                arcname=arcname
-            )
+            self.logger.info('Store file: {} -> {}'.format(reference, storage_path))
+            self.fs.put(reference, storage_path)
+            return storage_path
         elif os.path.isdir(reference):
-            return self._store_dir(
-                reference,
-                storage_fname=filename,
-                storage_subdir=subdir,
-                suffix=suffix,
-                arcname=arcname
-            )
+            self.logger.info('Store dir: {} -> {}'.format(reference, storage_path))
+            with tempfile.NamedTemporaryFile() as f:
+                self.compress(f.name, reference, arcname)
+                self.fs.put(f.name, storage_path)
+            return storage_path
         else:
             return None
+
+    def can_access(self, path) -> bool:
+        """
+        Hook to control if a path can be accessed. This can be used to prevent
+        access outside the root of the storage for example
+        """
+        return True
 
     def delete_file(self, reference):
         """
@@ -369,11 +273,9 @@ class BaseStorageConnector(object):
         :param reference: Path to `File`
         :type  reference: str
         """
-
-        ref_path = os.path.join(self.media_root, os.path.basename(reference))
-        if os.path.isfile(ref_path):
-            os.remove(ref_path)
-            logging.info('Deleted Shared file: {}'.format(ref_path))
+        if self.fs.isfile(reference) and self.can_access(reference):
+            self.fs.delete(reference)
+            logging.info('Deleted Shared file: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))
 
@@ -384,31 +286,29 @@ class BaseStorageConnector(object):
         :param reference: Path to `Directory`
         :type  reference: str
         """
-        ref_path = os.path.join(self.media_root, os.path.basename(reference))
-        if os.path.isdir(ref_path):
-            root = Path(self.media_root)
-            subdir = Path(ref_path)
-            if root == subdir:
+        # ref_path = os.path.join(self.media_root, os.path.basename(reference))
+        if self.fs.isdir(reference) and self.can_access(reference):
+            if Path('/') == Path(reference).resolve():
                 logging.info('Delete Error - prevented media root deletion')
             else:
-                shutil.rmtree(ref_path, ignore_errors=True)
-                logging.info('Deleted shared dir: {}'.format(ref_path))
+                self.fs.delete(reference, recursive=True)
+                logging.info('Deleted shared dir: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))
 
     def create_traceback(self, stdout, stderr, output_dir=""):
         traceback_file = self._get_unique_filename(LOG_FILE_SUFFIX)
-        fpath = os.path.join(output_dir, traceback_file)
-        with open(fpath, 'w') as f:
+        with tempfile.NamedTemporaryFile("w") as f:
             if stdout:
                 f.write(stdout)
             if stderr:
                 f.write(stderr)
-        return os.path.abspath(fpath)
 
-    def get_storage_url(self, filename=None, suffix="tar.gz"):
-        filename = filename or self._get_unique_filename(suffix)
-        return filename, str(Path(self.media_root, filename))
+            self.put(f.name, filename=traceback_file)
+        return traceback_file
+
+    def get_storage_url(self, filename=None, suffix="tar.gz") -> Tuple[str, str]:
+        raise NotImplementedError
 
     def get_fsspec_storage_options(self):
         return {}

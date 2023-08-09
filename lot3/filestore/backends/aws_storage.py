@@ -15,7 +15,44 @@ from ..log import set_aws_log_level
 
 
 class AwsObjectStore(BaseStorageConnector):
-    def __init__(self, settings):
+    def __init__(
+        self,
+        bucket_name,
+        *args,
+        access_key: str = None,
+        secret_key: str = None,
+        endpoint_url: str = None,
+        file_overwrite=True,
+        object_parameters: dict = None,
+        auto_create_bucket=False,
+        default_acl: str = None,
+        bucket_acl: str = None,
+        querystring_auth=False,
+        querystring_expire=604800,
+        reduced_redundancy=False,
+        location='',
+        encryption=False,
+        security_token=None,
+        secure_urls=True,
+        file_name_charset='utf-8',
+        gzip=False,
+        preload_metadata=False,
+        url_protocol='http:',
+        region_name=None,
+        use_ssl=True,
+        verify=None,
+        max_memory_size=0,
+        shared_bucket=False,
+        aws_log_level='',
+        gzip_content_types=(
+            'text/css',
+            'text/javascript',
+            'application/javascript',
+            'application/x-javascript',
+            'image/svg+xml',
+        ),
+        **kwargs,
+    ):
         """ Storage Connector for Amazon S3
 
         Store objects in a bucket common to a single worker pool. Returns a pre-signed URL
@@ -44,47 +81,44 @@ class AwsObjectStore(BaseStorageConnector):
         :param settings_conf: Settings object for worker
         :type settings_conf: src.conf.iniconf.Settings
         """
+        bucket_acl = bucket_acl or default_acl
+        object_parameters = object_parameters or {}
+
         # Required
         self.storage_connector = 'AWS-S3'
         self._bucket = None
         self._connection = None
-        self.access_key = settings.get('worker', 'AWS_ACCESS_KEY_ID', fallback=None)
-        self.secret_key = settings.get('worker', 'AWS_SECRET_ACCESS_KEY', fallback=None)
+        self.bucket_name = bucket_name
 
         # Optional
-        self.endpoint_url = settings.get('worker', 'AWS_S3_ENDPOINT_URL', fallback=None)
-        self.file_overwrite = settings.getboolean('worker', 'AWS_S3_FILE_OVERWRITE', fallback=True)
-        self.object_parameters = settings.get('worker', 'AWS_S3_OBJECT_PARAMETERS', fallback={})
-        self.bucket_name = settings.get('worker', 'AWS_BUCKET_NAME')
-        self.auto_create_bucket = settings.getboolean('worker', 'AWS_AUTO_CREATE_BUCKET', fallback=False)
-        self.default_acl = settings.get('worker', 'AWS_DEFAULT_ACL', fallback=None)
-        self.bucket_acl = settings.get('worker', 'AWS_BUCKET_ACL', fallback=self.default_acl)
-        self.querystring_auth = settings.getboolean('worker', 'AWS_QUERYSTRING_AUTH', fallback=False)
-        self.querystring_expire = settings.get('worker', 'AWS_QUERYSTRING_EXPIRE', fallback=604800)
-        self.reduced_redundancy = settings.getboolean('worker', 'AWS_REDUCED_REDUNDANCY', fallback=False)
-        self.location = settings.get('worker', 'AWS_LOCATION', fallback='')
-        self.encryption = settings.getboolean('worker', 'AWS_S3_ENCRYPTION', fallback=False)
-        self.security_token = settings.get('worker', 'AWS_SECURITY_TOKEN', fallback=None)
-        self.secure_urls = settings.getboolean('worker', 'AWS_S3_SECURE_URLS', fallback=True)
-        self.file_name_charset = settings.get('worker', 'AWS_S3_FILE_NAME_CHARSET', fallback='utf-8')
-        self.gzip = settings.getboolean('worker', 'AWS_IS_GZIPPED', fallback=False)
-        self.preload_metadata = settings.getboolean('worker', 'AWS_PRELOAD_METADATA', fallback=False)
-        self.url_protocol = settings.get('worker', 'AWS_S3_URL_PROTOCOL', fallback='http:')
-        self.region_name = settings.get('worker', 'AWS_S3_REGION_NAME', fallback=None)
-        self.use_ssl = settings.getboolean('worker', 'AWS_S3_USE_SSL', fallback=True)
-        self.verify = settings.get('worker', 'AWS_S3_VERIFY', fallback=None)
-        self.max_memory_size = settings.get('worker', 'AWS_S3_MAX_MEMORY_SIZE', fallback=0)
-        self.shared_bucket = settings.getboolean('worker', 'AWS_SHARED_BUCKET', fallback=False)
-        self.aws_log_level = settings.get('worker', 'AWS_LOG_LEVEL', fallback='')
-        self.gzip_content_types = settings.get('worker', 'GZIP_CONTENT_TYPES', fallback=(
-            'text/css',
-            'text/javascript',
-            'application/javascript',
-            'application/x-javascript',
-            'image/svg+xml',
-        ))
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.endpoint_url = endpoint_url
+        self.file_overwrite = file_overwrite
+        self.object_parameters = object_parameters
+        self.auto_create_bucket = auto_create_bucket
+        self.default_acl = default_acl
+        self.bucket_acl = bucket_acl
+        self.querystring_auth = querystring_auth
+        self.querystring_expire = querystring_expire
+        self.reduced_redundancy = reduced_redundancy
+        self.location = location
+        self.encryption = encryption
+        self.security_token = security_token
+        self.secure_urls = secure_urls
+        self.file_name_charset = file_name_charset
+        self.gzip = gzip
+        self.preload_metadata = preload_metadata
+        self.url_protocol = url_protocol
+        self.region_name = region_name
+        self.use_ssl = use_ssl
+        self.verify = verify
+        self.max_memory_size = max_memory_size
+        self.shared_bucket = shared_bucket
+        self.aws_log_level = aws_log_level
+        self.gzip_content_types = gzip_content_types
         set_aws_log_level(self.aws_log_level)
-        super(AwsObjectStore, self).__init__(settings)
+        super(AwsObjectStore, self).__init__(*args, **kwargs)
 
     @property
     def connection(self):
