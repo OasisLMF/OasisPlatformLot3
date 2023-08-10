@@ -307,7 +307,7 @@ class BaseStorageConnector(object):
             self.put(f.name, filename=traceback_file)
         return traceback_file
 
-    def get_storage_url(self, filename=None, suffix="tar.gz") -> Tuple[str, str]:
+    def get_storage_url(self, filename=None, suffix="tar.gz", print_safe=False) -> Tuple[str, str]:
         raise NotImplementedError
 
     def get_fsspec_storage_options(self):
@@ -326,6 +326,9 @@ class BaseStorageConnector(object):
 
     def isfile(self, path):
         return self.fs.isfile(path)
+
+    def listdir(self, path=""):
+        return self.fs.listdir(path, detail=False)
 
     @contextlib.contextmanager
     def open(self, path, *args, **kwargs):

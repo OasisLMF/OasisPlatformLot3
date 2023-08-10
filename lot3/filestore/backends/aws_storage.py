@@ -8,6 +8,8 @@ import tempfile
 import shutil
 
 from urllib.parse import urlsplit, parse_qsl
+
+import fsspec
 from botocore.exceptions import ClientError as S3_ClientError
 
 from .storage_manager import BaseStorageConnector
@@ -15,6 +17,8 @@ from ..log import set_aws_log_level
 
 
 class AwsObjectStore(BaseStorageConnector):
+    fsspec_filesystem_class = fsspec.get_filesystem_class("s3")
+
     def __init__(
         self,
         bucket_name,
@@ -423,26 +427,27 @@ class AwsObjectStore(BaseStorageConnector):
 
         self.bucket.upload_file(filepath, object_key, ExtraArgs=params)
 
-    def get_storage_url(self, filename=None, suffix="tar.gz"):
-        filename = filename or self._get_unique_filename(suffix)
+    def get_storage_url(self, filename=None, suffix="tar.gz", print_safe=False):
+        filename = filename if filename is not None else self._get_unique_filename(suffix)
 
         params = {}
-        if self.default_acl:
-            params["acl"] = self.default_acl
+        if not print_safe:
+            if self.default_acl:
+                params["acl"] = self.default_acl
 
-        if self.access_key:
-            params["key"] = self.access_key
+            if self.access_key:
+                params["key"] = self.access_key
 
-        if self.secret_key:
-            params["secret"] = self.secret_key
+            if self.secret_key:
+                params["secret"] = self.secret_key
 
-        if self.security_token:
-            params["token"] = self.security_token
+            if self.security_token:
+                params["token"] = self.security_token
 
-        if self.endpoint_url:
-            params["endpoint"] = self.endpoint_url
+            if self.endpoint_url:
+                params["endpoint"] = self.endpoint_url
 
         return (
             filename,
-            f"s3://{self.bucket_name}/{filename}?{parse.urlencode(params)}",
+            f"s3://{self.bucket_name}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )

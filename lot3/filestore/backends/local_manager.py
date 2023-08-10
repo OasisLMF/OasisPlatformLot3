@@ -20,7 +20,7 @@ class LocalStorageConnector(BaseStorageConnector):
     """
 
     storage_connector = 'FS-SHARE'
-    fsspec_filesystem_class = fsspec.filesystem('file')
+    fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
 
     def __init__(self, media_root: str, *args , **kwargs):
         self.media_root = media_root
@@ -44,12 +44,14 @@ class LocalStorageConnector(BaseStorageConnector):
         logging.info('Get shared filepath: {}'.format(reference))
         return os.path.abspath(fpath)
 
-    def get_storage_url(self, filename=None, suffix="tar.gz"):
-        filename = filename or self._get_unique_filename(suffix)
+    def get_storage_url(self, filename=None, suffix="tar.gz", **kwargs):
+        filename = filename if filename is not None else self._get_unique_filename(suffix)
         return filename, str(Path(self.media_root, filename))
 
     def get_fsspec_storage_options(self):
-        return {}
+        return {
+            "path": self.media_root
+        }
 
     @property
     def fs(self) -> fsspec.AbstractFileSystem:

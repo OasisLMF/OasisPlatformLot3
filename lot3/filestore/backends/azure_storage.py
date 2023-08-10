@@ -203,23 +203,24 @@ class AzureObjectStore(BaseStorageConnector):
     #     for blob in matching_objs:
     #         self.delete_file(blob.name)
 
-    def get_storage_url(self, filename=None, suffix="tar.gz"):
-        filename = filename or self._get_unique_filename(suffix)
+    def get_storage_url(self, filename=None, suffix="tar.gz", print_safe=False):
+        filename = filename if filename is not None else self._get_unique_filename(suffix)
 
         params = {}
-        if self.connection_string:
-            params["connection_string"] = self.connection_string
-        else:
-            if self.account_name:
-                params["account"] = self.account_name
+        if not print_safe:
+            if self.connection_string:
+                params["connection_string"] = self.connection_string
+            else:
+                if self.account_name:
+                    params["account"] = self.account_name
 
-            if self.account_key:
-                params["key"] = self.account_key
+                if self.account_key:
+                    params["key"] = self.account_key
 
-            if self.location:
-                params["endpoint"] = self.location
+                if self.location:
+                    params["endpoint"] = self.location
 
         return (
             filename,
-            f"abfs://{self.azure_container}/{filename}?{parse.urlencode(params)}",
+            f"abfs://{self.azure_container}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )
