@@ -10,10 +10,13 @@ import pathlib
 
 import dask_geopandas as dgpd
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from dask import dataframe as dd
 from dask_sql import Context
 from dask_sql.utils import ParsingException
+
+from ..filestore.backends.storage_manager import BaseStorageConnector
 
 logger = logging.getLogger("lot3.df_reader.reader")
 
@@ -30,12 +33,14 @@ class OasisReader:
     def __init__(
         self,
         filename_or_buffer,
+        storage: BaseStorageConnector,
         shape_filename_path=None,
         drop_geo=True,
         *args,
         **kwargs
     ):
         self.filename_or_buffer = filename_or_buffer
+        self.storage = storage
         self.shape_filename_path = shape_filename_path
         self.drop_geo = drop_geo
         self.df = None
@@ -47,13 +52,13 @@ class OasisReader:
         self.reader_args = args
         self.reader_kwargs = kwargs
 
-    def read_csv(self, filepath, *args, **kwargs):
+    def read_csv(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def read_parquet(self, filepath, *args, **kwargs):
+    def read_parquet(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def read_bin(self, filepath, *args, **kwargs):
+    def read_bin(self, *args, **kwargs):
         raise NotImplementedError()
 
     def _read(self):
@@ -62,14 +67,14 @@ class OasisReader:
 
             if extension in [".parquet", ".pq"]:
                 self.has_read = True
-                self.read_parquet(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+                self.read_parquet(*self.reader_args, **self.reader_kwargs)
             elif extension == ".bin":
                 self.has_read = True
-                self.read_bin(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+                self.read_bin(*self.reader_args, **self.reader_kwargs)
             else:
                 # assume the file is csv if not parquet
                 self.has_read = True
-                self.read_csv(self.filename_or_buffer, *self.reader_args, **self.reader_kwargs)
+                self.read_csv(*self.reader_args, **self.reader_kwargs)
 
             if self.shape_filename_path:
                 self.applied_geo = True
@@ -114,15 +119,38 @@ class OasisPandasReader(OasisReader):
     def read_csv(self, *args, **kwargs):
         _args = args
         _kwargs = kwargs
-        self.df = pd.read_csv(*args, **kwargs)
+
+        if isinstance(self.filename_or_buffer, str):
+            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+            self.df = pd.read_csv(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+        else:
+            self.df = pd.read_csv(self.filename_or_buffer, *args, **kwargs)
 
     def read_parquet(self, *args, **kwargs):
-        self.df = pd.read_parquet(*args, **kwargs)
+        if isinstance(self.filename_or_buffer, str):
+            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+            self.df = pd.read_parquet(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+        else:
+            self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
+
+    def read_bin(self, *args, dtype=None, **kwargs):
+        with self.storage.open(self.filename_or_buffer) as f:
+            footprint_mmap = np.memmap(f, dtype=dtype)
+
+            self.df = pd.DataFrame(
+                footprint_mmap,
+                columns=footprint_mmap.dtype.names
+            )
+            return self
 
     def apply_geo(self, *args, **kwargs):
         """
         Read in a shape file and return the _read file with geo data joined.
         """
+        # TODO: fix this so that it can work with non local files
+        # with self.storage.open(self.shape_filename_path) as f:
+        #     shape_df = gpd.read_file(f)
+
         shape_df = gpd.read_file(self.shape_filename_path)
 
         # for situations where the columns in the source data are different.
@@ -164,6 +192,10 @@ class OasisDaskReader(OasisReader):
         """
         Read in a shape file and return the _read file with geo data joined.
         """
+        # TODO: fix this so that it can work with non local files
+        # with self.storage.open(self.shape_filename_path) as f:
+        #     shape_df = dgpd.read_file(f, npartitions=1)
+
         shape_df = dgpd.read_file(self.shape_filename_path, npartitions=1)
 
         # for situations where the columns in the source data are different.
@@ -221,14 +253,15 @@ class OasisDaskReader(OasisReader):
         super().as_pandas()
         return self.df.compute()
 
-    def read_csv(self, filename_or_buffer, *args, **kwargs):
+    def read_csv(self, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.
         dask_safe_kwargs = kwargs.copy()
         dask_safe_kwargs.pop("memory_map", None)
         dask_safe_kwargs.pop("low_memory", None)
 
+        filename_or_buffer = self.filename_or_buffer
         if isinstance(filename_or_buffer, pathlib.PosixPath):
-            filename_or_buffer = str(filename_or_buffer)
+            filename_or_buffer = str(self.filename_or_buffer)
 
         if isinstance(filename_or_buffer, io.TextIOWrapper) or isinstance(
             filename_or_buffer, io.BufferedReader
@@ -238,10 +271,15 @@ class OasisDaskReader(OasisReader):
         if filename_or_buffer.endswith(".zip"):
             kwargs["compression"] = None
 
-        self.df = dd.read_csv(filename_or_buffer, *args, **dask_safe_kwargs)
+        _, uri = self.storage.get_storage_url(filename_or_buffer, encode_params=False)
+        self.df = dd.read_csv(uri, *args, **dask_safe_kwargs, storage_options=self.storage.get_fsspec_storage_options())
 
-    def read_parquet(self, filename_or_buffer, *args, **kwargs):
-        self.df = dd.read_parquet(filename_or_buffer, *args, **kwargs)
+    def read_parquet(self, *args, **kwargs):
+        if isinstance(self.filename_or_buffer, str):
+            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+            self.df = dd.read_parquet(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+        else:
+            self.df = dd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 
         # Currently categorical queries are not supported in dask https://github.com/dask-contrib/dask-sql/issues/423
         # When reading csv, these become strings anyway, so for now we convert to strings.

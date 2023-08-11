@@ -6,8 +6,11 @@ import pandas as pd
 import pytest
 
 from lot3.df_reader.reader import OasisDaskReaderCSV, OasisPandasReaderCSV
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [OasisPandasReaderCSV, OasisDaskReaderCSV]
+
+storage = LocalStorageConnector('/')
 
 
 @pytest.fixture
@@ -36,7 +39,7 @@ def test_read_csv__expected_pandas_dataframe(reader, df):
             path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
         )
 
-        result = reader(csv.name).as_pandas()
+        result = reader(csv.name, storage).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -64,7 +67,7 @@ def test_read_csv__df_filter__expected_pandas_dataframe(reader, df):
         def sample_filter(filter_df):
             return filter_df[filter_df["E"] == "test"]
 
-        result = reader(csv.name).filter([sample_filter]).as_pandas()
+        result = reader(csv.name, storage).filter([sample_filter]).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -85,7 +88,7 @@ def test_read_csv__df_filter__multiple__expected_pandas_dataframe(reader, df):
         )
 
         result = (
-            reader(csv.name)
+            reader(csv.name, storage)
             .filter(
                 [
                     lambda x: x[x["E"] == "test"],
@@ -114,13 +117,14 @@ def test_read_csv__dask__removes_bad_kwargs(df):
 
         with patch("dask.dataframe.read_csv") as dask_read_csv:
             OasisDaskReaderCSV(
-                csv.name, memory_map=True, low_memory=True, encoding="utf-8"
+                csv.name, storage, memory_map=True, low_memory=True, encoding="utf-8"
             ).as_pandas()
 
         assert len(dask_read_csv.call_args[0]) == 1
-        assert dask_read_csv.call_args[0][0] == csv.name
-        assert len(dask_read_csv.call_args[1]) == 1
+        assert dask_read_csv.call_args[0][0] == f"file://{csv.name}"
+        assert len(dask_read_csv.call_args[1]) == 2
         assert dask_read_csv.call_args[1]["encoding"] == "utf-8"
+        assert dask_read_csv.call_args[1]["storage_options"] == {"path": "/"}
 
 
 def test_read_csv__dask__sql__expected_pandas_dataframe(df):
@@ -130,7 +134,7 @@ def test_read_csv__dask__sql__expected_pandas_dataframe(df):
         )
 
         result = (
-            OasisDaskReaderCSV(csv.name)
+            OasisDaskReaderCSV(csv.name, storage)
             .sql("SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
             .as_pandas()
         )
@@ -152,7 +156,7 @@ def test_read_csv__dask__sql__invalid_sql(df, caplog):
             path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
         )
 
-        result = OasisDaskReaderCSV(csv.name).sql("SELECT X FROM table").as_pandas()
+        result = OasisDaskReaderCSV(csv.name, storage).sql("SELECT X FROM table").as_pandas()
 
         assert result.empty
         assert caplog.messages == ["Invalid SQL provided"]
@@ -165,7 +169,7 @@ def test_read_csv__dask__sql__no_data(df, caplog):
         )
 
         result = (
-            OasisDaskReaderCSV(csv.name)
+            OasisDaskReaderCSV(csv.name, storage)
             .sql("SELECT * FROM table WHERE E = 'tester'")
             .as_pandas()
         )

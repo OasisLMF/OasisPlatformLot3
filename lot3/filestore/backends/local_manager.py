@@ -13,10 +13,9 @@ from lot3.filestore.backends.storage_manager import BaseStorageConnector, Missin
 
 
 class LocalStorageConnector(BaseStorageConnector):
-    """ Base storage class
-
-    Implements storage for a local fileshare between
-    `server` and `worker` containers
+    """
+    Implements storage for a local filesystem. All paths passed to the
+    storage should be relative to the media root.
     """
 
     storage_connector = 'FS-SHARE'
@@ -46,7 +45,7 @@ class LocalStorageConnector(BaseStorageConnector):
 
     def get_storage_url(self, filename=None, suffix="tar.gz", **kwargs):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
-        return filename, str(Path(self.media_root, filename))
+        return filename, f"file://{Path(self.media_root, filename)}"
 
     def get_fsspec_storage_options(self):
         return {

@@ -9,6 +9,7 @@ from shapely.geometry import Point
 from lot3.df_reader.reader import (OasisDaskReaderCSV, OasisDaskReaderParquet,
                                    OasisPandasReaderCSV,
                                    OasisPandasReaderParquet)
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [
     OasisPandasReaderCSV,
@@ -16,6 +17,9 @@ READERS = [
     OasisDaskReaderCSV,
     OasisDaskReaderParquet,
 ]
+
+
+storage = LocalStorageConnector('/')
 
 
 @pytest.fixture
@@ -48,7 +52,7 @@ def test_read__expected_pandas_dataframe(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, shape_filename_path=geodatasets.get_path("nybb")
+            file.name, storage, shape_filename_path=geodatasets.get_path("nybb")
         ).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
@@ -70,7 +74,7 @@ def test_read__expected_pandas_dataframe__drop_geo(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, shape_filename_path=geodatasets.get_path("nybb"), drop_geo=False
+            file.name, storage, shape_filename_path=geodatasets.get_path("nybb"), drop_geo=False
         ).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
@@ -118,7 +122,7 @@ def test_read__gql_filter__expected_pandas_dataframe(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = (
-            reader(file.name, shape_filename_path=geodatasets.get_path("nybb"))
+            reader(file.name, storage, shape_filename_path=geodatasets.get_path("nybb"))
             .filter([lambda x: x[x["longitude"] == 1028825]])
             .as_pandas()
         )
@@ -144,7 +148,7 @@ def test_read__shape_file__invalid(reader, df, caplog):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, shape_filename_path=geodatasets.get_path("nybb")
+            file.name, storage, shape_filename_path=geodatasets.get_path("nybb")
         ).as_pandas()
 
         assert result.empty

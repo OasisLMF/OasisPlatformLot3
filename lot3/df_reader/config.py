@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TypedDict, Dict, Optional, Union
 
 from .reader import OasisReader
+from ..filestore.backends.local_manager import LocalStorageConnector
 
 
 class ConfigError(Exception):
@@ -76,4 +77,5 @@ def get_df_reader(config, *args, **kwargs):
     if cls is not OasisReader and OasisReader not in cls.__bases__:
         raise ConfigError(f"'{cls.__name__}' does not extend 'OasisReader'")
 
-    return cls(config["filepath"], *args, **kwargs, **config["engine"]["options"])
+    storage = config["engine"]["options"].get("storage", None) or LocalStorageConnector("/")
+    return cls(config["filepath"], storage, *args, **kwargs, **config["engine"]["options"])

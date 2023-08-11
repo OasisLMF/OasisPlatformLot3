@@ -307,7 +307,7 @@ class BaseStorageConnector(object):
             self.put(f.name, filename=traceback_file)
         return traceback_file
 
-    def get_storage_url(self, filename=None, suffix="tar.gz", print_safe=False) -> Tuple[str, str]:
+    def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True) -> Tuple[str, str]:
         raise NotImplementedError
 
     def get_fsspec_storage_options(self):

@@ -427,11 +427,11 @@ class AwsObjectStore(BaseStorageConnector):
 
         self.bucket.upload_file(filepath, object_key, ExtraArgs=params)
 
-    def get_storage_url(self, filename=None, suffix="tar.gz", print_safe=False):
+    def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
 
         params = {}
-        if not print_safe:
+        if not encode_params:
             if self.default_acl:
                 params["acl"] = self.default_acl
 
