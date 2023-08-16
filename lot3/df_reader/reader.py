@@ -58,9 +58,6 @@ class OasisReader:
     def read_parquet(self, *args, **kwargs):
         raise NotImplementedError()
 
-    def read_bin(self, *args, **kwargs):
-        raise NotImplementedError()
-
     def _read(self):
         if not self.has_read:
             extension = pathlib.Path(self.filename_or_buffer).suffix
@@ -68,9 +65,6 @@ class OasisReader:
             if extension in [".parquet", ".pq"]:
                 self.has_read = True
                 self.read_parquet(*self.reader_args, **self.reader_kwargs)
-            elif extension == ".bin":
-                self.has_read = True
-                self.read_bin(*self.reader_args, **self.reader_kwargs)
             else:
                 # assume the file is csv if not parquet
                 self.has_read = True
@@ -132,16 +126,6 @@ class OasisPandasReader(OasisReader):
             self.df = pd.read_parquet(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
         else:
             self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
-
-    def read_bin(self, *args, dtype=None, **kwargs):
-        with self.storage.open(self.filename_or_buffer) as f:
-            footprint_mmap = np.memmap(f, dtype=dtype)
-
-            self.df = pd.DataFrame(
-                footprint_mmap,
-                columns=footprint_mmap.dtype.names
-            )
-            return self
 
     def apply_geo(self, *args, **kwargs):
         """

@@ -42,6 +42,16 @@ class BaseStorageConnector(object):
         self.logger = logger or logging.getLogger()
         self._fs = None
 
+    def to_config(self) -> dict:
+        return {
+            "path": f"{self.__module__}.{self.__name__}",
+            "options": self.config_options,
+        }
+
+    @property
+    def config_options(self):
+        raise NotImplementedError()
+
     def _get_unique_filename(self, suffix=""):
         """ Returns a unique name
 
@@ -274,7 +284,7 @@ class BaseStorageConnector(object):
         :type  reference: str
         """
         if self.fs.isfile(reference) and self.can_access(reference):
-            self.fs.delete(reference)
+            # self.fs.delete(reference)
             logging.info('Deleted Shared file: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))
@@ -291,7 +301,7 @@ class BaseStorageConnector(object):
             if Path('/') == Path(reference).resolve():
                 logging.info('Delete Error - prevented media root deletion')
             else:
-                self.fs.delete(reference, recursive=True)
+                # self.fs.delete(reference, recursive=True)
                 logging.info('Deleted shared dir: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))

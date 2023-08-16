@@ -14,14 +14,13 @@ from ..log import set_azure_log_level
 
 class AzureObjectStore(BaseStorageConnector):
     # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python
-    fsspec_filesystem_class = fsspec.get_filesystem_class('abfs')
+    fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
 
     def __init__(
         self,
-        account_name,
-        account_key,
-        azure_container,
-        *args,
+        account_name=None,
+        account_key=None,
+        azure_container=None,
         location='',
         connection_string: str = None,
         shared_container=True,
@@ -37,6 +36,7 @@ class AzureObjectStore(BaseStorageConnector):
         custom_domain: str = None,
         token_credential=None,
         azure_log_level=logging.ERROR,
+        root_dir="/",
         **kwargs,
     ):
         self._service_client = None
@@ -64,8 +64,33 @@ class AzureObjectStore(BaseStorageConnector):
         self.token_credential = token_credential
         self.azure_log_level = azure_log_level
         self.azure_protocol = 'https' if self.azure_ssl else 'http'
+        self.root_dir = root_dir
         set_azure_log_level(self.azure_log_level)
-        super(AzureObjectStore, self).__init__(*args, **kwargs)
+        super(AzureObjectStore, self).__init__(**kwargs)
+
+    @property
+    def config_options(self):
+        return {
+            "account_name": self.account_name,
+            "account_key": self.account_key,
+            "azure_container": self.azure_container,
+            "location": self.location,
+            "connection_string": self.connection_string,
+            "shared_container": self.shared_container,
+            "azure_ssl": self.azure_ssl,
+            "upload_max_conn": self.upload_max_conn,
+            "timeout": self.timeout,
+            "max_memory_size": self.max_memory_size,
+            "expiration_secs": self.expiration_secs,
+            "overwrite_files": self.overwrite_files,
+            "default_content_type": self.default_content_type,
+            "cache_control": self.cache_control,
+            "sas_token": self.sas_token,
+            "custom_domain": self.custom_domain,
+            "token_credential": self.token_credential,
+            "azure_log_level": self.azure_log_level,
+            "root_dir": self.root_dir,
+        }
 
     def _get_service_client(self):
         if self.connection_string is not None:
@@ -202,6 +227,18 @@ class AzureObjectStore(BaseStorageConnector):
     #     matching_objs = self.client.list_blobs(name_starts_with=key_prefix)
     #     for blob in matching_objs:
     #         self.delete_file(blob.name)
+
+    def get_fsspec_storage_options(self):
+        return {
+            "path": self.bucket_root,
+            "fs": fsspec.get_filesystem_class("abfs")(
+                key=self.access_key,
+                secret=self.secret_key,
+                endpoint_url=self.endpoint_url,
+                token=self.security_token,
+                ssl=self.url_protocol != "http:",
+            )
+        }
 
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
         filename = filename if filename is not None else self._get_unique_filename(suffix)

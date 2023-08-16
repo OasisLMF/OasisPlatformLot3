@@ -1,15 +1,11 @@
 import contextlib
-import io
 import logging
 import os
-import shutil
 
 import fsspec
 from pathlib2 import Path
-from urllib.parse import urlparse
-from urllib.request import urlopen
 
-from lot3.filestore.backends.storage_manager import BaseStorageConnector, MissingInputsException
+from lot3.filestore.backends.storage_manager import BaseStorageConnector
 
 
 class LocalStorageConnector(BaseStorageConnector):
@@ -21,23 +17,29 @@ class LocalStorageConnector(BaseStorageConnector):
     storage_connector = 'FS-SHARE'
     fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
 
-    def __init__(self, media_root: str, *args , **kwargs):
-        self.media_root = media_root
+    def __init__(self, root_dir: str = '/', **kwargs):
+        self.root_dir = root_dir
 
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
+
+    @property
+    def config_options(self):
+        return {
+            "root_dir": self.root_dir,
+        }
 
     def can_access(self, path) -> bool:
         """
         Hook to control if a path can be deleted. This can be used to prevent
         deletion from outside the root of the storage
         """
-        return os.path.realpath(path).startswith(os.path.realpath(self.media_root) + os.pathsep)
+        return os.path.realpath(path).startswith(os.path.realpath(self.root_dir) + os.pathsep)
 
     def filepath(self, reference):
         """ return the absolute filepath 
         """
         fpath = os.path.join(
-            self.media_root,
+            self.root_dir,
             os.path.basename(reference)
         )
         logging.info('Get shared filepath: {}'.format(reference))
@@ -45,11 +47,11 @@ class LocalStorageConnector(BaseStorageConnector):
 
     def get_storage_url(self, filename=None, suffix="tar.gz", **kwargs):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
-        return filename, f"file://{Path(self.media_root, filename)}"
+        return filename, f"file://{Path(self.root_dir, filename)}"
 
     def get_fsspec_storage_options(self):
         return {
-            "path": self.media_root
+            "path": self.root_dir
         }
 
     @property
