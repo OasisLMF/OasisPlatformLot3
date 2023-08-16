@@ -17,6 +17,7 @@ class StorageConfig(TypedDict):
 
 
 def get_storage_from_config(config_path, fallback_path):
+    import ipdb;ipdb.set_trace()
     if os.path.exists(config_path):
         with open(config_path) as f:
             config: StorageConfig = json.load(f)

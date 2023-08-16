@@ -161,11 +161,16 @@ class AwsObjectStore(BaseStorageConnector):
         return {
             "path": self.root_dir,
             "fs": fsspec.get_filesystem_class("s3")(
+
+                acl=self.default_acl,
+                anon=not self.access_key and not self.security_token,
                 key=self.access_key,
                 secret=self.secret_key,
-                endpoint_url=self.endpoint_url,
                 token=self.security_token,
-                ssl=self.url_protocol != "http:",
+                use_ssl=self.use_ssl,
+                client_kwargs={
+                    "endpoint_url": self.endpoint_url,
+                },
             )
         }
 

@@ -52,8 +52,8 @@ def test_read__expected_pandas_dataframe(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, storage, shape_filename_path=geodatasets.get_path("nybb")
-        ).as_pandas()
+            file.name, storage
+        ).apply_geo(geodatasets.get_path("nybb")).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -74,8 +74,8 @@ def test_read__expected_pandas_dataframe__drop_geo(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, storage, shape_filename_path=geodatasets.get_path("nybb"), drop_geo=False
-        ).as_pandas()
+            file.name, storage,
+        ).apply_geo(geodatasets.get_path("nybb"), drop_geo=False).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -122,7 +122,8 @@ def test_read__gql_filter__expected_pandas_dataframe(reader, df):
             df.to_parquet(path=file.name, index=False)
 
         result = (
-            reader(file.name, storage, shape_filename_path=geodatasets.get_path("nybb"))
+            reader(file.name, storage)
+            .apply_geo(geodatasets.get_path("nybb"))
             .filter([lambda x: x[x["longitude"] == 1028825]])
             .as_pandas()
         )
@@ -148,8 +149,8 @@ def test_read__shape_file__invalid(reader, df, caplog):
             df.to_parquet(path=file.name, index=False)
 
         result = reader(
-            file.name, storage, shape_filename_path=geodatasets.get_path("nybb")
-        ).as_pandas()
+            file.name, storage,
+        ).apply_geo(geodatasets.get_path("nybb")).as_pandas()
 
         assert result.empty
         assert caplog.messages == ["Invalid shape file provided"]

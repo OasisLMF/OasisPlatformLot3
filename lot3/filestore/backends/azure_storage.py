@@ -230,13 +230,14 @@ class AzureObjectStore(BaseStorageConnector):
 
     def get_fsspec_storage_options(self):
         return {
-            "path": self.bucket_root,
+            "path": self.root_dir,
             "fs": fsspec.get_filesystem_class("abfs")(
-                key=self.access_key,
-                secret=self.secret_key,
-                endpoint_url=self.endpoint_url,
-                token=self.security_token,
-                ssl=self.url_protocol != "http:",
+                anon=not self.account_key,
+                connection_string=self.connection_string,
+                account_name=self.account_name,
+                account_key=self.account_key,
+                use_ssl=self.azure_ssl,
+                endpoint_url=self.location,
             )
         }
 

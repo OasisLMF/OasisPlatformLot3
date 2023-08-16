@@ -4,8 +4,7 @@ from pathlib import Path
 from typing import TypedDict, Dict, Optional, Union
 
 from .reader import OasisReader
-from ..config import load_class
-from ..df_engine.config import ConfigError
+from ..config import load_class, ConfigError
 from ..filestore.backends.local_manager import LocalStorageConnector
 
 
@@ -63,7 +62,7 @@ def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:
 def get_df_reader(config, *args, **kwargs):
     config = clean_config(config)
 
-    cls = load_class(config["engine"]["path"].rsplit(".", 1), OasisReader)
+    cls = load_class(config["engine"]["path"], OasisReader)
 
     storage = config["engine"]["options"].get("storage", None) or LocalStorageConnector("/")
     return cls(config["filepath"], storage, *args, **kwargs, **config["engine"]["options"])

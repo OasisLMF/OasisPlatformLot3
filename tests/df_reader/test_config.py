@@ -105,7 +105,7 @@ def test_path_is_not_absolute_path___error_is_raised():
         })
 
     assert str(exec_info.value) == (
-        "'filepath' found in the df_reader config is not valid: path_to_a_module"
+        "'path' found in the df_reader config is not valid: path_to_a_module"
     )
 
 

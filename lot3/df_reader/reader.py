@@ -10,7 +10,6 @@ import pathlib
 
 import dask_geopandas as dgpd
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 from dask import dataframe as dd
 from dask_sql import Context
@@ -34,23 +33,26 @@ class OasisReader:
         self,
         filename_or_buffer,
         storage: BaseStorageConnector,
-        shape_filename_path=None,
-        drop_geo=True,
         *args,
+        dataframe=None,
+        has_read=False,
         **kwargs
     ):
         self.filename_or_buffer = filename_or_buffer
         self.storage = storage
-        self.shape_filename_path = shape_filename_path
-        self.drop_geo = drop_geo
-        self.df = None
-        self.applied_sql = False
-        self.applied_filters = False
-        self.has_read = False
-        self.applied_geo = False
-        self.read = False
+        self._df = dataframe
+        self.has_read = has_read
         self.reader_args = args
         self.reader_kwargs = kwargs
+
+    @property
+    def df(self):
+        self._read()
+        return self._df
+
+    @df.setter
+    def df(self, other):
+        self._df = other
 
     def read_csv(self, *args, **kwargs):
         raise NotImplementedError()
@@ -70,35 +72,38 @@ class OasisReader:
                 self.has_read = True
                 self.read_csv(*self.reader_args, **self.reader_kwargs)
 
-            if self.shape_filename_path:
-                self.applied_geo = True
-                self.apply_geo(*self.reader_args, **self.reader_kwargs)
-
         return self
+
+    def copy_with_df(self, df):
+        return type(self)(
+            self.filename_or_buffer,
+            self.storage,
+            dataframe=df,
+            has_read=self.has_read
+        )
 
     def filter(self, filters):
-        if filters:
-            self.applied_filters = True
-            self._read()
+        self._read()
 
-            for df_filter in filters:
-                self.df = df_filter(self.df)
-        return self
+        df = self.df
+        for df_filter in filters:
+            df = df_filter(df)
+
+        return self.copy_with_df(df)
 
     def apply_filter(self, filters):
         pass
 
     def sql(self, sql):
         if sql:
-            self.applied_sql = True
             self._read()
-            self.apply_sql(sql)
+            return self.apply_sql(sql)
         return self
 
     def apply_sql(self, sql):
         pass
 
-    def apply_geo(self, *args, **kwargs):
+    def apply_geo(self, shapefile, *args, drop_geo=True, **kwargs):
         pass
 
     def query(self, fn):
@@ -127,7 +132,7 @@ class OasisPandasReader(OasisReader):
         else:
             self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 
-    def apply_geo(self, *args, **kwargs):
+    def apply_geo(self, shape_filename_path, *args, drop_geo=True, **kwargs):
         """
         Read in a shape file and return the _read file with geo data joined.
         """
@@ -135,7 +140,7 @@ class OasisPandasReader(OasisReader):
         # with self.storage.open(self.shape_filename_path) as f:
         #     shape_df = gpd.read_file(f)
 
-        shape_df = gpd.read_file(self.shape_filename_path)
+        shape_df = gpd.read_file(shape_filename_path)
 
         # for situations where the columns in the source data are different.
         lon_col = kwargs.get("geo_lon_col", "longitude")
@@ -145,23 +150,23 @@ class OasisPandasReader(OasisReader):
         if lat_col not in df_columns or lon_col not in df_columns:
             logger.warning("Invalid shape file provided")
             # temp until we decide on handling, i.e don't return full data if it fails.
-            self.df = pd.DataFrame.from_dict({})
-            return
+            return self.copy_with_df(pd.DataFrame.from_dict({}))
 
         # convert read df to geo
-        self.df = gpd.GeoDataFrame(
+        df = gpd.GeoDataFrame(
             self.df, geometry=gpd.points_from_xy(self.df[lon_col], self.df[lat_col])
         )
 
         # Make sure they're using the same projection reference
-        self.df.crs = shape_df.crs
+        df.crs = shape_df.crs
 
         # join the datasets, matching `geometry` to points within the shape df
-        self.df = self.df.sjoin(shape_df, how="inner")
+        df = df.sjoin(shape_df, how="inner")
 
-        if self.drop_geo:
-            self.df = self.df.drop(shape_df.columns.tolist() + ["index_right"], axis=1)
+        if drop_geo:
+            df = df.drop(shape_df.columns.tolist() + ["index_right"], axis=1)
 
+        return self.copy_with_df(df)
 
 class OasisPandasReaderCSV(OasisPandasReader):
     pass
@@ -172,7 +177,7 @@ class OasisPandasReaderParquet(OasisPandasReader):
 
 
 class OasisDaskReader(OasisReader):
-    def apply_geo(self, *args, **kwargs):
+    def apply_geo(self, shape_filename_path, *args, drop_geo=True, **kwargs):
         """
         Read in a shape file and return the _read file with geo data joined.
         """
@@ -180,7 +185,7 @@ class OasisDaskReader(OasisReader):
         # with self.storage.open(self.shape_filename_path) as f:
         #     shape_df = dgpd.read_file(f, npartitions=1)
 
-        shape_df = dgpd.read_file(self.shape_filename_path, npartitions=1)
+        shape_df = dgpd.read_file(shape_filename_path, npartitions=1)
 
         # for situations where the columns in the source data are different.
         lon_col = kwargs.get("geo_lon_col", "longitude")
@@ -190,48 +195,55 @@ class OasisDaskReader(OasisReader):
         if lat_col not in df_columns or lon_col not in df_columns:
             logger.warning("Invalid shape file provided")
             # temp until we decide on handling, i.e don't return full data if it fails.
-            self.df = dd.DataFrame.from_dict({}, npartitions=1)
-            return
+            return self.copy_with_df(dd.DataFrame.from_dict({}, npartitions=1))
+
+        df = self.df.copy()
 
         # convert read df to geo
-        self.df["geometry"] = dgpd.points_from_xy(self.df, lon_col, lat_col)
-        self.df = dgpd.from_dask_dataframe(self.df)
+        df["geometry"] = dgpd.points_from_xy(df, lon_col, lat_col)
+        df = dgpd.from_dask_dataframe(df)
 
         # Make sure they're using the same projection reference
-        self.df.crs = shape_df.crs
+        df.crs = shape_df.crs
 
         # join the datasets, matching `geometry` to points within the shape df
-        self.df = self.df.sjoin(shape_df, how="inner")
+        df = df.sjoin(shape_df, how="inner")
 
-        if self.drop_geo:
-            self.df = self.df.drop(shape_df.columns.tolist() + ["index_right"], axis=1)
+        if drop_geo:
+            df = df.drop(shape_df.columns.tolist() + ["index_right"], axis=1)
+
+        return self.copy_with_df(df)
 
     def apply_sql(self, sql):
+        df = self.df.copy()
+
         try:
             c = Context()
             # TODO should the table name be the csv filename, seems no harm in that unless
             # we have same name csv's elsewhere.
             table_name = os.path.basename(self.filename_or_buffer).split(".")[0]
-            c.create_table(table_name, self.df)
+            c.create_table(table_name, df)
             formatted_sql = sql.replace("table", table_name)
 
-            pre_sql_columns = self.df.columns
+            pre_sql_columns = df.columns
 
             # dask expects the columns to be lower case, which won't match some data
-            self.df = c.sql(
+            df = c.sql(
                 formatted_sql,
                 config_options={"sql.identifier.case_sensitive": False},
             )
             # which means we then need to map the columns back to the original
-            self.df.columns = [
-                x for x in pre_sql_columns if x.lower() in self.df.columns
+            df.columns = [
+                x for x in pre_sql_columns if x.lower() in df.columns
             ]
+
+            return self.copy_with_df(df)
         except ParsingException:
             # TODO - validation? need to store images for display when this is hooked up. Probably bubble
             # this up to a generic sql message
             logger.warning("Invalid SQL provided")
             # temp until we decide on handling, i.e don't return full data if it fails.
-            self.df = dd.DataFrame.from_dict({}, npartitions=1)
+            return self.copy_with_df(dd.DataFrame.from_dict({}, npartitions=1))
 
     def as_pandas(self):
         super().as_pandas()
