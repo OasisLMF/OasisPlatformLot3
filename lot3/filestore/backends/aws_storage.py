@@ -159,10 +159,8 @@ class AwsObjectStore(BaseStorageConnector):
 
     def get_fsspec_storage_options(self):
         return {
-            "path": self.root_dir,
+            "path": os.path.join(self.bucket_name, self.root_dir),
             "fs": fsspec.get_filesystem_class("s3")(
-
-                acl=self.default_acl,
                 anon=not self.access_key and not self.security_token,
                 key=self.access_key,
                 secret=self.secret_key,
@@ -481,7 +479,7 @@ class AwsObjectStore(BaseStorageConnector):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
 
         params = {}
-        if not encode_params:
+        if encode_params:
             if self.default_acl:
                 params["acl"] = self.default_acl
 
@@ -499,5 +497,5 @@ class AwsObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"s3://{self.bucket_name}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"s3://{os.path.join(self.bucket_name, self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )

@@ -64,5 +64,5 @@ def get_df_reader(config, *args, **kwargs):
 
     cls = load_class(config["engine"]["path"], OasisReader)
 
-    storage = config["engine"]["options"].get("storage", None) or LocalStorageConnector("/")
+    storage = config["engine"]["options"].pop("storage", None) or LocalStorageConnector("/")
     return cls(config["filepath"], storage, *args, **kwargs, **config["engine"]["options"])

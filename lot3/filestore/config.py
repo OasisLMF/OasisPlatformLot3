@@ -17,7 +17,6 @@ class StorageConfig(TypedDict):
 
 
 def get_storage_from_config(config_path, fallback_path):
-    import ipdb;ipdb.set_trace()
     if os.path.exists(config_path):
         with open(config_path) as f:
             config: StorageConfig = json.load(f)
@@ -25,7 +24,7 @@ def get_storage_from_config(config_path, fallback_path):
             model_storage = cls(**config["options"])
     elif config_path:
         model_storage = LocalStorageConnector(
-            media_root=fallback_path,
+            root_dir=fallback_path,
             cache_dir=None,
         )
     else:

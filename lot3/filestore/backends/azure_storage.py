@@ -36,7 +36,7 @@ class AzureObjectStore(BaseStorageConnector):
         custom_domain: str = None,
         token_credential=None,
         azure_log_level=logging.ERROR,
-        root_dir="/",
+        root_dir="",
         **kwargs,
     ):
         self._service_client = None
@@ -230,7 +230,7 @@ class AzureObjectStore(BaseStorageConnector):
 
     def get_fsspec_storage_options(self):
         return {
-            "path": self.root_dir,
+            "path": os.path.join(self.azure_container, self.root_dir),
             "fs": fsspec.get_filesystem_class("abfs")(
                 anon=not self.account_key,
                 connection_string=self.connection_string,
@@ -245,7 +245,7 @@ class AzureObjectStore(BaseStorageConnector):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
 
         params = {}
-        if not encode_params:
+        if encode_params:
             if self.connection_string:
                 params["connection_string"] = self.connection_string
             else:
@@ -260,5 +260,5 @@ class AzureObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"abfs://{self.azure_container}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"abfs://{os.path.join(self.azure_container, self.root_dir)}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )

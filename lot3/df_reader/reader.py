@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import pathlib
+from typing import Iterable
 
 import dask_geopandas as dgpd
 import geopandas as gpd
@@ -86,7 +87,7 @@ class OasisReader:
         self._read()
 
         df = self.df
-        for df_filter in filters:
+        for df_filter in (filters if isinstance(filters, Iterable) else [filters]):
             df = df_filter(df)
 
         return self.copy_with_df(df)
@@ -120,15 +121,15 @@ class OasisPandasReader(OasisReader):
         _kwargs = kwargs
 
         if isinstance(self.filename_or_buffer, str):
-            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
-            self.df = pd.read_csv(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+            with self.storage.open(self.filename_or_buffer) as f:
+                self.df = pd.read_csv(f, *args, **kwargs)
         else:
             self.df = pd.read_csv(self.filename_or_buffer, *args, **kwargs)
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
-            self.df = pd.read_parquet(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+            with self.storage.open(self.filename_or_buffer) as f:
+                self.df = pd.read_parquet(f, *args, **kwargs)
         else:
             self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 
@@ -267,13 +268,13 @@ class OasisDaskReader(OasisReader):
         if filename_or_buffer.endswith(".zip"):
             kwargs["compression"] = None
 
-        _, uri = self.storage.get_storage_url(filename_or_buffer, encode_params=False)
-        self.df = dd.read_csv(uri, *args, **dask_safe_kwargs, storage_options=self.storage.get_fsspec_storage_options())
+        with self.storage.open(self.filename_or_buffer) as f:
+            self.df = dd.read_csv(f, *args, **dask_safe_kwargs)
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
-            self.df = dd.read_parquet(uri, *args, **kwargs, storage_options=self.storage.get_fsspec_storage_options())
+            with self.storage.open(self.filename_or_buffer) as f:
+                self.df = dd.read_parquet(f, *args, **kwargs)
         else:
             self.df = dd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 

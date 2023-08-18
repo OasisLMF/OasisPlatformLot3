@@ -16,6 +16,7 @@ class LocalStorageConnector(BaseStorageConnector):
 
     storage_connector = 'FS-SHARE'
     fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
+    supports_bin_files = True
 
     def __init__(self, root_dir: str = '/', **kwargs):
         self.root_dir = root_dir

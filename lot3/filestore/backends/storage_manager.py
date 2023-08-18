@@ -34,6 +34,7 @@ class BaseStorageConnector(object):
 
     storage_connector: str
     fsspec_filesystem_class: Type[fsspec.AbstractFileSystem]
+    supports_bin_files = False
 
     def __init__(self, cache_dir: Union[str, None] = '/tmp/data-cache', logger=None):
         # Use for caching files across multiple runs, set value 'None' or 'False' to disable
