@@ -16,7 +16,6 @@ class LocalStorageConnector(BaseStorageConnector):
 
     storage_connector = 'FS-SHARE'
     fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
-    supports_bin_files = True
 
     def __init__(self, root_dir: str = '/', **kwargs):
         self.root_dir = root_dir
@@ -35,16 +34,6 @@ class LocalStorageConnector(BaseStorageConnector):
         deletion from outside the root of the storage
         """
         return os.path.realpath(path).startswith(os.path.realpath(self.root_dir) + os.pathsep)
-
-    def filepath(self, reference):
-        """ return the absolute filepath 
-        """
-        fpath = os.path.join(
-            self.root_dir,
-            os.path.basename(reference)
-        )
-        logging.info('Get shared filepath: {}'.format(reference))
-        return os.path.abspath(fpath)
 
     def get_storage_url(self, filename=None, suffix="tar.gz", **kwargs):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
@@ -72,4 +61,9 @@ class LocalStorageConnector(BaseStorageConnector):
     @contextlib.contextmanager
     def open(self, path, *args, **kwargs):
         with self.fs.open(path, *args, **kwargs) as f:
+            yield f
+
+    @contextlib.contextmanager
+    def with_fileno(self, path, mode="rb"):
+        with self.open(path, mode) as f:
             yield f

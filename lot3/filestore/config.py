@@ -8,7 +8,7 @@ from lot3.filestore.backends.storage_manager import BaseStorageConnector
 
 
 class LocalStorageConfig(TypedDict):
-    media_root: str
+    root_dir: str
 
 
 class StorageConfig(TypedDict):
@@ -17,12 +17,12 @@ class StorageConfig(TypedDict):
 
 
 def get_storage_from_config(config_path, fallback_path):
-    if os.path.exists(config_path):
+    if config_path and os.path.exists(config_path):
         with open(config_path) as f:
             config: StorageConfig = json.load(f)
             cls = load_class(config["storage_class"], BaseStorageConnector)
             model_storage = cls(**config["options"])
-    elif config_path:
+    elif fallback_path:
         model_storage = LocalStorageConnector(
             root_dir=fallback_path,
             cache_dir=None,

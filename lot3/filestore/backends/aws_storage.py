@@ -54,7 +54,7 @@ class AwsObjectStore(BaseStorageConnector):
             'application/x-javascript',
             'image/svg+xml',
         ),
-        root_dir="/",
+        root_dir="",
         **kwargs,
     ):
         """ Storage Connector for Amazon S3
@@ -125,6 +125,7 @@ class AwsObjectStore(BaseStorageConnector):
         set_aws_log_level(self.aws_log_level)
         super(AwsObjectStore, self).__init__(**kwargs)
 
+    @property
     def config_options(self):
         return {
             "bucket_name": self.bucket_name,

@@ -1,5 +1,4 @@
 import contextlib
-import dataclasses
 import io
 import logging
 import os
@@ -7,7 +6,7 @@ import shutil
 import tarfile
 import tempfile
 import uuid
-from typing import Type, Optional, Tuple, Union
+from typing import Type, Tuple, Union
 
 import fsspec
 from pathlib2 import Path
@@ -34,7 +33,6 @@ class BaseStorageConnector(object):
 
     storage_connector: str
     fsspec_filesystem_class: Type[fsspec.AbstractFileSystem]
-    supports_bin_files = False
 
     def __init__(self, cache_dir: Union[str, None] = '/tmp/data-cache', logger=None):
         # Use for caching files across multiple runs, set value 'None' or 'False' to disable
@@ -45,7 +43,7 @@ class BaseStorageConnector(object):
 
     def to_config(self) -> dict:
         return {
-            "path": f"{self.__module__}.{self.__name__}",
+            "storage_class": f"{self.__module__}.{type(self).__name__}",
             "options": self.config_options,
         }
 
@@ -83,11 +81,6 @@ class BaseStorageConnector(object):
         else:
             return False
 
-    def filepath(self, reference) -> str:
-        """ return the absolute filepath 
-        """
-        raise NotImplementedError
-
     def extract(self, archive_fp, directory, storage_subdir=''):
         """ Extract tar file
 
@@ -109,6 +102,7 @@ class BaseStorageConnector(object):
                 subdir=storage_subdir
             )
             with tarfile.open(local_archive_path) as f:
+                os.makedirs(directory, exist_ok=True)
                 f.extractall(directory)
 
     def compress(self, archive_fp, directory, arcname=None):
@@ -143,7 +137,7 @@ class BaseStorageConnector(object):
 
         # Store in cache if enabled
         if self.cache_root:
-            os.makedirs(self.cache_root, exist_ok=True)
+            os.makedirs(os.path.dirname(cached_file), exist_ok=True)
             shutil.copyfile(target, cached_file)
 
         return os.path.abspath(target)
@@ -179,6 +173,7 @@ class BaseStorageConnector(object):
                 return None
 
         target = os.path.join(output_path, subdir) if subdir else output_path
+        os.makedirs(os.path.dirname(target), exist_ok=True)
 
         # Download if URL ref
         if self._is_valid_url(reference):
@@ -194,7 +189,6 @@ class BaseStorageConnector(object):
 
             # Download if not cached
             def download_content():
-                os.makedirs(os.path.dirname(target), exist_ok=True)
                 with io.open(target, 'w+b') as f:
                     f.write(fdata)
                     logging.info('Get from URL: {}'.format(fname))
@@ -204,15 +198,13 @@ class BaseStorageConnector(object):
                 target,
             )
         else:
-            file_path = self.filepath(reference)
-
-            if self.fs.isdir(target):
+            if os.path.isdir(target):
                 target = os.path.join(target, reference)
             else:
                 target = target
 
             return self.with_cache(
-                lambda: self.fs.get(file_path, target),
+                lambda: self.fs.get(reference, target),
                 reference,
                 target,
             )
@@ -253,7 +245,7 @@ class BaseStorageConnector(object):
         filename = filename if filename else self._get_unique_filename(ext)
         storage_path = os.path.join(subdir, filename) if subdir else filename
 
-        # make any sub directories in teh storage if necessary
+        # make any sub directories in the storage if necessary
         if subdir:
             self.fs.mkdirs(subdir, exist_ok=True)
 
@@ -345,3 +337,12 @@ class BaseStorageConnector(object):
     def open(self, path, *args, **kwargs):
         with self.fs.open(path, *args, **kwargs) as f:
             yield f
+
+    @contextlib.contextmanager
+    def with_fileno(self, path, mode="rb"):
+        with tempfile.TemporaryDirectory() as d:
+            target = os.path.join(d, "fileno")
+            self.get(path, target)
+
+            with open(target, mode) as f:
+                yield f
