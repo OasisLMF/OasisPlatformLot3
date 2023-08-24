@@ -37,6 +37,7 @@ class AzureObjectStore(BaseStorageConnector):
         token_credential=None,
         azure_log_level=logging.ERROR,
         root_dir="",
+        endpoint_url=None,
         **kwargs,
     ):
         self._service_client = None
@@ -48,8 +49,7 @@ class AzureObjectStore(BaseStorageConnector):
         self.azure_container = azure_container
 
         # Optional
-        self.location = location
-        self.connection_string = connection_string
+        self._connection_string = connection_string
         self.shared_container = shared_container
         self.azure_ssl = azure_ssl
         self.upload_max_conn = upload_max_conn
@@ -64,7 +64,8 @@ class AzureObjectStore(BaseStorageConnector):
         self.token_credential = token_credential
         self.azure_log_level = azure_log_level
         self.azure_protocol = 'https' if self.azure_ssl else 'http'
-        self.root_dir = root_dir
+        self.root_dir = location or root_dir
+        self.endpoint_url = endpoint_url
         set_azure_log_level(self.azure_log_level)
         super(AzureObjectStore, self).__init__(**kwargs)
 
@@ -74,7 +75,6 @@ class AzureObjectStore(BaseStorageConnector):
             "account_name": self.account_name,
             "account_key": self.account_key,
             "azure_container": self.azure_container,
-            "location": self.location,
             "connection_string": self.connection_string,
             "shared_container": self.shared_container,
             "azure_ssl": self.azure_ssl,
@@ -90,6 +90,7 @@ class AzureObjectStore(BaseStorageConnector):
             "token_credential": self.token_credential,
             "azure_log_level": self.azure_log_level,
             "root_dir": self.root_dir,
+            "endpoint_url": self.endpoint_url,
         }
 
     def _get_service_client(self):
@@ -111,15 +112,6 @@ class AzureObjectStore(BaseStorageConnector):
         elif self.token_credential:
             credential = self.token_credential
         return BlobServiceClient(account_url, credential=credential)
-
-    def get_fsspec_storage_options(self):
-        return {
-            "connection_string": self.connection_string,
-            "account_name": self.account_name,
-            "account_key": self.account_key,
-            "sas_token": self.sas_token,
-            "anon": not (self.sas_token or self.account_key or self.connection_string),
-        }
 
     @property
     def service_client(self):
@@ -234,12 +226,25 @@ class AzureObjectStore(BaseStorageConnector):
             "fs": fsspec.get_filesystem_class("abfs")(
                 anon=not self.account_key,
                 connection_string=self.connection_string,
-                account_name=self.account_name,
-                account_key=self.account_key,
                 use_ssl=self.azure_ssl,
-                endpoint_url=self.location,
             )
         }
+
+    @property
+    def connection_string(self):
+        if self._connection_string:
+            return self._connection_string
+        else:
+            cs = ""
+            if self.endpoint_url:
+                cs += f"BlobEndpoint={self.endpoint_url};"
+            if self.account_name:
+                cs += f"AccountName={self.account_name};"
+            if self.account_key:
+                cs += f"AccountKey={self.account_key};"
+
+            return cs
+
 
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
         filename = filename if filename is not None else self._get_unique_filename(suffix)
@@ -255,8 +260,8 @@ class AzureObjectStore(BaseStorageConnector):
                 if self.account_key:
                     params["key"] = self.account_key
 
-                if self.location:
-                    params["endpoint"] = self.location
+                if self.endpoint_url:
+                    params["endpoint"] = self.endpoint_url
 
         return (
             filename,
