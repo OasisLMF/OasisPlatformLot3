@@ -245,9 +245,7 @@ class BaseStorageConnector(object):
         filename = filename if filename else self._get_unique_filename(ext)
         storage_path = os.path.join(subdir, filename) if subdir else filename
 
-        # make any sub directories in the storage if necessary
-        if subdir:
-            self.fs.mkdirs(subdir, exist_ok=True)
+        self.fs.mkdirs(os.path.dirname(storage_path), exist_ok=True)
 
         if os.path.isfile(reference):
             self.logger.info('Store file: {} -> {}'.format(reference, storage_path))
@@ -262,13 +260,6 @@ class BaseStorageConnector(object):
         else:
             return None
 
-    def can_access(self, path) -> bool:
-        """
-        Hook to control if a path can be accessed. This can be used to prevent
-        access outside the root of the storage for example
-        """
-        return True
-
     def delete_file(self, reference):
         """
         Delete single file from shared storage
@@ -276,8 +267,8 @@ class BaseStorageConnector(object):
         :param reference: Path to `File`
         :type  reference: str
         """
-        if self.fs.isfile(reference) and self.can_access(reference):
-            # self.fs.delete(reference)
+        if self.fs.isfile(reference):
+            self.fs.delete(reference)
             logging.info('Deleted Shared file: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))
@@ -289,12 +280,11 @@ class BaseStorageConnector(object):
         :param reference: Path to `Directory`
         :type  reference: str
         """
-        # ref_path = os.path.join(self.media_root, os.path.basename(reference))
-        if self.fs.isdir(reference) and self.can_access(reference):
+        if self.fs.isdir(reference):
             if Path('/') == Path(reference).resolve():
                 logging.info('Delete Error - prevented media root deletion')
             else:
-                # self.fs.delete(reference, recursive=True)
+                self.fs.delete(reference, recursive=True)
                 logging.info('Deleted shared dir: {}'.format(reference))
         else:
             logging.info('Delete Error - Unknwon reference {}'.format(reference))
@@ -335,8 +325,7 @@ class BaseStorageConnector(object):
 
     @contextlib.contextmanager
     def open(self, path, *args, **kwargs):
-        with self.fs.open(path, *args, **kwargs) as f:
-            yield f
+        yield self.fs.open(path, *args, **kwargs)
 
     @contextlib.contextmanager
     def with_fileno(self, path, mode="rb"):
@@ -344,5 +333,4 @@ class BaseStorageConnector(object):
             target = os.path.join(d, "fileno")
             self.get(path, target)
 
-            with open(target, mode) as f:
-                yield f
+            yield open(target, mode)
