@@ -1,3 +1,4 @@
+import base64
 import contextlib
 import io
 import logging
@@ -127,7 +128,8 @@ class BaseStorageConnector(object):
     def with_cache(self, callback, fname, target):
         # Check and copy file if cached
         if self.cache_root:
-            cached_file = os.path.join(self.cache_root, fname)
+            cache_filename = base64.b64encode(fname.encode()).decode()
+            cached_file = os.path.join(self.cache_root, cache_filename)
             if os.path.isfile(cached_file):
                 logging.info('Get from Cache: {}'.format(fname))
                 shutil.copyfile(cached_file, target)
