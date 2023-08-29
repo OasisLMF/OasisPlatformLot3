@@ -268,8 +268,8 @@ class OasisDaskReader(OasisReader):
         if filename_or_buffer.endswith(".zip"):
             kwargs["compression"] = None
 
-        with self.storage.open(self.filename_or_buffer) as f:
-            self.df = dd.read_csv(f, *args, **dask_safe_kwargs)
+        _, uri = self.storage.get_storage_url(filename_or_buffer, encode_params=False)
+        self.df = dd.read_csv(uri, *args, **dask_safe_kwargs, storage_options=self.storage.get_fsspec_storage_options())
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):

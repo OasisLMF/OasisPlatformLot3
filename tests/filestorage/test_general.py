@@ -15,6 +15,9 @@ test_file_name = "test_file.txt"
 test_dir_name = "test_dir"
 
 
+pytest.skip(allow_module_level=True)
+
+
 @contextlib.contextmanager
 def aws_storage(**kwargs):
     kwargs.setdefault("bucket_name", uuid.uuid4().hex)
@@ -46,7 +49,6 @@ storage_factories = [
 # get
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -62,7 +64,6 @@ def test_get_copies_a_file_to_the_correct_location(storage_factory, content):
             assert f.read() == content
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -84,7 +85,6 @@ def test_cannot_copy_outside_of_root(storage_factory, content):
 # put
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -99,7 +99,6 @@ def test_put_copies_a_file_to_the_correct_location(storage_factory, content):
             assert f.read() == content
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -119,14 +118,12 @@ def test_put_copies_directory_to_a_tar(storage_factory, content):
 # exists
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_inside_root_doesnt_exist___exists_is_false(storage_factory):
     with storage_factory() as storage:
         assert not storage.exists(test_file_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_outside_root_does_exist___exists_is_false(storage_factory):
     content = "content"
@@ -139,7 +136,6 @@ def test_path_outside_root_does_exist___exists_is_false(storage_factory):
         assert not storage.exists(os.path.join('..', 'other', test_file_name))
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_file_path_inside_root_does_exist___exists_is_true(storage_factory):
     content = "content"
@@ -151,7 +147,6 @@ def test_file_path_inside_root_does_exist___exists_is_true(storage_factory):
         assert storage.exists(test_file_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_dir_path_inside_root_does_exist___exists_is_true(storage_factory):
     with storage_factory() as storage:
@@ -164,14 +159,12 @@ def test_dir_path_inside_root_does_exist___exists_is_true(storage_factory):
 # isfile
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_inside_root_doesnt_exist___isfile_is_false(storage_factory):
     with storage_factory() as storage:
         assert not storage.isfile(test_file_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_outside_root_does_exist___isfile_is_false(storage_factory):
     content = "content"
@@ -184,7 +177,6 @@ def test_path_outside_root_does_exist___isfile_is_false(storage_factory):
         assert not storage.isfile(os.path.join("..", "other", test_file_name))
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_file_path_inside_root_does_exist___isfile_is_true(storage_factory):
     content = "content"
@@ -196,7 +188,6 @@ def test_file_path_inside_root_does_exist___isfile_is_true(storage_factory):
         assert storage.isfile(test_file_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_dir_path_inside_root_does_exist___isfile_is_false(storage_factory):
     with storage_factory() as storage:
@@ -209,7 +200,6 @@ def test_dir_path_inside_root_does_exist___isfile_is_false(storage_factory):
 # delete_file
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_outside_the_root___delete_file_fails(storage_factory):
     content = "content"
@@ -224,7 +214,6 @@ def test_path_is_outside_the_root___delete_file_fails(storage_factory):
         assert os.path.exists(os.path.join("..", "other", test_file_name))
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_inside_the_root_but_directory___delete_file_fails(storage_factory):
     with storage_factory() as storage:
@@ -235,7 +224,6 @@ def test_path_is_inside_the_root_but_directory___delete_file_fails(storage_facto
         assert storage.exists(test_file_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_inside_the_root_and_file___file_is_deleted(storage_factory):
     content = "content"
@@ -253,7 +241,6 @@ def test_path_is_inside_the_root_and_file___file_is_deleted(storage_factory):
 # delete_dir
 #
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_outside_the_root___delete_dir_fails(storage_factory):
     with storage_factory(root_dir="root") as storage:
@@ -264,7 +251,6 @@ def test_path_is_outside_the_root___delete_dir_fails(storage_factory):
         assert storage.fs.fs.exists(os.path.join(storage.fs.path, "..", "other", test_file_name))
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_inside_the_root_and_directory___dir_is_deleted(storage_factory):
     with storage_factory() as storage:
@@ -275,7 +261,6 @@ def test_path_is_inside_the_root_and_directory___dir_is_deleted(storage_factory)
         assert not storage.exists(test_dir_name)
 
 
-@pytest.skip()
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_inside_the_root_but_a_file___delete_dir_fails(storage_factory):
     content = "content"
