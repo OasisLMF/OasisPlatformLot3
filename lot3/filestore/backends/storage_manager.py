@@ -325,7 +325,12 @@ class BaseStorageConnector(object):
 
     @contextlib.contextmanager
     def open(self, path, *args, **kwargs):
-        yield self.fs.open(path, *args, **kwargs)
+        if self._is_valid_url(path):
+            with tempfile.TemporaryDirectory() as d:
+                with open(self.get(path, d)) as f:
+                    yield f
+        else:
+            yield self.fs.open(path, *args, **kwargs)
 
     @contextlib.contextmanager
     def with_fileno(self, path, mode="rb"):

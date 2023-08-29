@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import pathlib
+from copy import deepcopy
 from typing import Iterable
 
 import dask_geopandas as dgpd
@@ -45,6 +46,9 @@ class OasisReader:
         self.has_read = has_read
         self.reader_args = args
         self.reader_kwargs = kwargs
+
+        if isinstance(self.filename_or_buffer, str) and self.filename_or_buffer.lower().endswith(".zip"):
+            self.reader_kwargs["compression"] = "zip"
 
     @property
     def df(self):
@@ -121,15 +125,31 @@ class OasisPandasReader(OasisReader):
         _kwargs = kwargs
 
         if isinstance(self.filename_or_buffer, str):
-            with self.storage.open(self.filename_or_buffer) as f:
-                self.df = pd.read_csv(f, *args, **kwargs)
+            if self.filename_or_buffer.startswith("http://") or self.filename_or_buffer.startswith("https://"):
+                self.df = pd.read_csv(self.filename_or_buffer, *args, **kwargs)
+            else:
+                _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+                self.df = pd.read_csv(
+                    uri,
+                    *args,
+                    **kwargs,
+                    storage_options=self.storage.get_fsspec_storage_options(),
+                )
         else:
             self.df = pd.read_csv(self.filename_or_buffer, *args, **kwargs)
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            with self.storage.open(self.filename_or_buffer) as f:
-                self.df = pd.read_parquet(f, *args, **kwargs)
+            if self.filename_or_buffer.startswith("http://") or self.filename_or_buffer.startswith("https://"):
+                self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
+            else:
+                _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+                self.df = pd.read_parquet(
+                    uri,
+                    *args,
+                    **kwargs,
+                    storage_options=self.storage.get_fsspec_storage_options(),
+                )
         else:
             self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 
@@ -273,8 +293,13 @@ class OasisDaskReader(OasisReader):
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            with self.storage.open(self.filename_or_buffer) as f:
-                self.df = dd.read_parquet(f, *args, **kwargs)
+            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+            self.df = dd.read_parquet(
+                uri,
+                *args,
+                **kwargs,
+                storage_options=self.storage.get_fsspec_storage_options(),
+            )
         else:
             self.df = dd.read_parquet(self.filename_or_buffer, *args, **kwargs)
 
