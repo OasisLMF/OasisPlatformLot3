@@ -109,12 +109,6 @@ class OasisReader:
             return self.apply_sql(sql)
         return self
 
-    def apply_sql(self, sql):
-        pass
-
-    def apply_geo(self, shapefile, *args, drop_geo=True, **kwargs):
-        pass
-
     def query(self, fn):
         return fn(self.df)
 
