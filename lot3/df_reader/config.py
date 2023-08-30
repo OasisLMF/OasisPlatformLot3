@@ -1,8 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
-# from typing import TypedDict, Dict, NotRequired, Union
-from typing import TypedDict, Dict, Optional, Union
-
+from typing import TypedDict, Dict, Union
+from typing_extensions import NotRequired
 from .reader import OasisReader
 from ..config import load_class, ConfigError
 from ..filestore.backends.local_manager import LocalStorageConnector
@@ -19,13 +18,13 @@ class ResolvedReaderConfig(TypedDict):
 
 
 class InputReaderEngineConfig(TypedDict):
-    path: Optional[str]
-    options: Optional[Dict[str, any]]
+    path: NotRequired[str]
+    options: NotRequired[Dict[str, any]]
 
 
 class InputReaderConfig(TypedDict):
     filepath: str
-    engine: Optional[Union[str, InputReaderEngineConfig]]
+    engine: NotRequired[Union[str, InputReaderEngineConfig]]
 
 
 def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:

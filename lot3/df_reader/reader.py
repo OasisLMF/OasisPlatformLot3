@@ -5,7 +5,6 @@
 
 import io
 import logging
-import os
 import pathlib
 from copy import deepcopy
 from typing import Iterable
@@ -18,6 +17,7 @@ from dask_sql import Context
 from dask_sql.utils import ParsingException
 
 from ..filestore.backends.storage_manager import BaseStorageConnector
+from .exceptions import InvalidSQLException
 
 logger = logging.getLogger("lot3.df_reader.reader")
 
@@ -26,7 +26,7 @@ class OasisReader:
     """
     Base reader.
 
-    as_pandas(), sql() & filter() can all be chained with self.read controlling whether the base
+    as_pandas(), sql() & filter() can all be chained with self.has_read controlling whether the base
     read (read_csv/read_parquet) needs to be triggered. This is because in the case of spark
     we need to read differently depending on if the intention is to do sql or filter.
     """
@@ -41,6 +41,7 @@ class OasisReader:
         **kwargs
     ):
         self.filename_or_buffer = filename_or_buffer
+
         self.storage = storage
         self._df = dataframe
         self.has_read = has_read
@@ -67,7 +68,10 @@ class OasisReader:
 
     def _read(self):
         if not self.has_read:
-            extension = pathlib.Path(self.filename_or_buffer).suffix
+            if hasattr(self.filename_or_buffer, "name"):
+                extension = pathlib.Path(self.filename_or_buffer.name).suffix
+            else:
+                extension = pathlib.Path(self.filename_or_buffer).suffix
 
             if extension in [".parquet", ".pq"]:
                 self.has_read = True
@@ -240,11 +244,12 @@ class OasisDaskReader(OasisReader):
 
         try:
             c = Context()
-            # TODO should the table name be the csv filename, seems no harm in that unless
-            # we have same name csv's elsewhere.
-            table_name = os.path.basename(self.filename_or_buffer).split(".")[0]
-            c.create_table(table_name, df)
-            formatted_sql = sql.replace("table", table_name)
+
+            # Initially this was the filename, but some filenames are invalid for the table,
+            # is it ok to call it the same name all the time? Mapped to DaskDataTable in case
+            # we need to change this.
+            c.create_table("DaskDataTable", self.df)
+            formatted_sql = sql.replace("table", "DaskDataTable")
 
             pre_sql_columns = df.columns
 
@@ -254,17 +259,22 @@ class OasisDaskReader(OasisReader):
                 config_options={"sql.identifier.case_sensitive": False},
             )
             # which means we then need to map the columns back to the original
-            df.columns = [
-                x for x in pre_sql_columns if x.lower() in df.columns
-            ]
+            # and allow for any aggregations to be retained
+            validated_columns = []
+            for v in df.columns:
+                pre = False
+                for x in pre_sql_columns:
+                    if v.lower() == x.lower():
+                        validated_columns.append(x)
+                        pre = True
+
+                if not pre:
+                    validated_columns.append(v)
+            df.columns = validated_columns
 
             return self.copy_with_df(df)
         except ParsingException:
-            # TODO - validation? need to store images for display when this is hooked up. Probably bubble
-            # this up to a generic sql message
-            logger.warning("Invalid SQL provided")
-            # temp until we decide on handling, i.e don't return full data if it fails.
-            return self.copy_with_df(dd.DataFrame.from_dict({}, npartitions=1))
+            raise InvalidSQLException
 
     def as_pandas(self):
         super().as_pandas()
@@ -281,12 +291,13 @@ class OasisDaskReader(OasisReader):
             filename_or_buffer = str(self.filename_or_buffer)
 
         if isinstance(filename_or_buffer, io.TextIOWrapper) or isinstance(
-            filename_or_buffer, io.BufferedReader
+                filename_or_buffer, io.BufferedReader
         ):
             filename_or_buffer = filename_or_buffer.name
 
-        if filename_or_buffer.endswith(".zip"):
-            kwargs["compression"] = None
+        # django files
+        if hasattr(filename_or_buffer, "path"):
+            filename_or_buffer = filename_or_buffer.path
 
         _, uri = self.storage.get_storage_url(filename_or_buffer, encode_params=False)
         self.df = dd.read_csv(uri, *args, **dask_safe_kwargs, storage_options=self.storage.get_fsspec_storage_options())
