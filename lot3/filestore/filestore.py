@@ -19,14 +19,19 @@ def split_s3_url(parts):
         },
     }
 
-    return urllib.parse.urlunparse((
-        parts[0],
-        parts[1],
-        parts[2],
-        parts[3],
-        "",
-        parts[5],
-    )), params
+    return (
+        urllib.parse.urlunparse(
+            (
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+                "",
+                parts[5],
+            )
+        ),
+        params,
+    )
 
 
 def split_azure_url(parts):
@@ -43,7 +48,6 @@ def split_azure_url(parts):
         if "key" in query:
             connection_string += f"AccountKey={ query.get('key', [None])[0] };"
 
-
     params = {
         "anon": "key" not in query and "secret" not in query,
         "connection_string": connection_string,
@@ -55,14 +59,19 @@ def split_azure_url(parts):
         "use_ssl": query.get("ssl", ["True"])[0] == "True",
     }
 
-    return urllib.parse.urlunparse((
-        parts[0],
-        parts[1],
-        parts[2],
-        parts[3],
-        "",
-        parts[5],
-    )), params
+    return (
+        urllib.parse.urlunparse(
+            (
+                parts[0],
+                parts[1],
+                parts[2],
+                parts[3],
+                "",
+                parts[5],
+            )
+        ),
+        params,
+    )
 
 
 def parse_url_options(path):

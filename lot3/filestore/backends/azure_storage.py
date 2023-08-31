@@ -1,43 +1,41 @@
 import logging
 import os
-import shutil
-import tempfile
+from typing import Optional
 from urllib import parse
 
 import fsspec
-from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 
-from .storage_manager import BaseStorageConnector
 from ..log import set_azure_log_level
+from .storage_manager import BaseStorageConnector
 
 
 class AzureObjectStore(BaseStorageConnector):
     # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python
-    fsspec_filesystem_class = fsspec.get_filesystem_class('dir')
+    fsspec_filesystem_class = fsspec.get_filesystem_class("dir")
 
     def __init__(
         self,
-        account_name=None,
-        account_key=None,
-        azure_container=None,
-        location='',
-        connection_string: str = None,
+        account_name: Optional[str] = None,
+        account_key: Optional[str] = None,
+        azure_container: Optional[str] = None,
+        location="",
+        connection_string: Optional[str] = None,
         shared_container=True,
         azure_ssl=True,
         upload_max_conn=2,
         timeout=20,
         max_memory_size=2 * 1024 * 1024,
-        expiration_secs: int = None,
+        expiration_secs: Optional[int] = None,
         overwrite_files=True,
-        default_content_type='application/octet-stream',
-        cache_control: str = None,
-        sas_token: str = None,
-        custom_domain: str = None,
-        token_credential=None,
+        default_content_type="application/octet-stream",
+        cache_control: Optional[str] = None,
+        sas_token: Optional[str] = None,
+        custom_domain: Optional[str] = None,
+        token_credential: Optional[str] = None,
         azure_log_level=logging.ERROR,
         root_dir="",
-        endpoint_url=None,
+        endpoint_url: Optional[str] = None,
         **kwargs,
     ):
         self._service_client = None
@@ -63,7 +61,7 @@ class AzureObjectStore(BaseStorageConnector):
         self.custom_domain = custom_domain
         self.token_credential = token_credential
         self.azure_log_level = azure_log_level
-        self.azure_protocol = 'https' if self.azure_ssl else 'http'
+        self.azure_protocol = "https" if self.azure_ssl else "http"
         self.root_dir = location or root_dir
         self.endpoint_url = endpoint_url
         set_azure_log_level(self.azure_log_level)
@@ -98,7 +96,8 @@ class AzureObjectStore(BaseStorageConnector):
             return BlobServiceClient.from_connection_string(self.connection_string)
 
         account_domain = self.custom_domain or "{}.blob.core.windows.net".format(
-            self.account_name)
+            self.account_name
+        )
         account_url = "{}://{}".format(self.azure_protocol, account_domain)
 
         credential = None
@@ -227,7 +226,7 @@ class AzureObjectStore(BaseStorageConnector):
                 anon=not self.account_key,
                 connection_string=self.connection_string,
                 use_ssl=self.azure_ssl,
-            )
+            ),
         }
 
     @property
@@ -245,9 +244,10 @@ class AzureObjectStore(BaseStorageConnector):
 
             return cs
 
-
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
-        filename = filename if filename is not None else self._get_unique_filename(suffix)
+        filename = (
+            filename if filename is not None else self._get_unique_filename(suffix)
+        )
 
         params = {}
         if encode_params:

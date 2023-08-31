@@ -1,5 +1,3 @@
-
-
 class OasisException(Exception):
     """
     Oasis base exception class
@@ -14,10 +12,9 @@ class OasisException(Exception):
         self.original_exception = original_exception
         if original_exception:
             # This is wrapped execption
-            super(OasisException, self).__init__(msg + (", {}: {}".format(
-                original_exception.__class__.__name__,
-                original_exception)
-            ))
+            super(OasisException, self).__init__(
+                f"{msg}, {original_exception.__class__.__name__}: {original_exception}"
+            )
         else:
             # Message only exception
             super(OasisException, self).__init__(msg)

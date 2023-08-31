@@ -6,9 +6,12 @@ import pandas as pd
 import pytest
 from shapely.geometry import Point
 
-from lot3.df_reader.reader import (OasisDaskReaderCSV, OasisDaskReaderParquet,
-                                   OasisPandasReaderCSV,
-                                   OasisPandasReaderParquet)
+from lot3.df_reader.reader import (
+    OasisDaskReaderCSV,
+    OasisDaskReaderParquet,
+    OasisPandasReaderCSV,
+    OasisPandasReaderParquet,
+)
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [
@@ -19,7 +22,7 @@ READERS = [
 ]
 
 
-storage = LocalStorageConnector('/')
+storage = LocalStorageConnector("/")
 
 
 @pytest.fixture
@@ -51,9 +54,11 @@ def test_read__expected_pandas_dataframe(reader, df):
         else:
             df.to_parquet(path=file.name, index=False)
 
-        result = reader(
-            file.name, storage
-        ).apply_geo(geodatasets.get_path("nybb")).as_pandas()
+        result = (
+            reader(file.name, storage)
+            .apply_geo(geodatasets.get_path("nybb"))
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -73,9 +78,14 @@ def test_read__expected_pandas_dataframe__drop_geo(reader, df):
         else:
             df.to_parquet(path=file.name, index=False)
 
-        result = reader(
-            file.name, storage,
-        ).apply_geo(geodatasets.get_path("nybb"), drop_geo=False).as_pandas()
+        result = (
+            reader(
+                file.name,
+                storage,
+            )
+            .apply_geo(geodatasets.get_path("nybb"), drop_geo=False)
+            .as_pandas()
+        )
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -148,9 +158,14 @@ def test_read__shape_file__invalid(reader, df, caplog):
         else:
             df.to_parquet(path=file.name, index=False)
 
-        result = reader(
-            file.name, storage,
-        ).apply_geo(geodatasets.get_path("nybb")).as_pandas()
+        result = (
+            reader(
+                file.name,
+                storage,
+            )
+            .apply_geo(geodatasets.get_path("nybb"))
+            .as_pandas()
+        )
 
         assert result.empty
         assert caplog.messages == ["Invalid shape file provided"]

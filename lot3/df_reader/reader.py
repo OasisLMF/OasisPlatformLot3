@@ -6,7 +6,6 @@
 import io
 import logging
 import pathlib
-from copy import deepcopy
 from typing import Iterable
 
 import dask_geopandas as dgpd
@@ -48,7 +47,9 @@ class OasisReader:
         self.reader_args = args
         self.reader_kwargs = kwargs
 
-        if isinstance(self.filename_or_buffer, str) and self.filename_or_buffer.lower().endswith(".zip"):
+        if isinstance(
+            self.filename_or_buffer, str
+        ) and self.filename_or_buffer.lower().endswith(".zip"):
             self.reader_kwargs["compression"] = "zip"
 
     @property
@@ -85,17 +86,14 @@ class OasisReader:
 
     def copy_with_df(self, df):
         return type(self)(
-            self.filename_or_buffer,
-            self.storage,
-            dataframe=df,
-            has_read=self.has_read
+            self.filename_or_buffer, self.storage, dataframe=df, has_read=self.has_read
         )
 
     def filter(self, filters):
         self._read()
 
         df = self.df
-        for df_filter in (filters if isinstance(filters, Iterable) else [filters]):
+        for df_filter in filters if isinstance(filters, Iterable) else [filters]:
             df = df_filter(df)
 
         return self.copy_with_df(df)
@@ -119,14 +117,15 @@ class OasisReader:
 
 class OasisPandasReader(OasisReader):
     def read_csv(self, *args, **kwargs):
-        _args = args
-        _kwargs = kwargs
-
         if isinstance(self.filename_or_buffer, str):
-            if self.filename_or_buffer.startswith("http://") or self.filename_or_buffer.startswith("https://"):
+            if self.filename_or_buffer.startswith(
+                "http://"
+            ) or self.filename_or_buffer.startswith("https://"):
                 self.df = pd.read_csv(self.filename_or_buffer, *args, **kwargs)
             else:
-                _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+                _, uri = self.storage.get_storage_url(
+                    self.filename_or_buffer, encode_params=False
+                )
                 self.df = pd.read_csv(
                     uri,
                     *args,
@@ -138,10 +137,14 @@ class OasisPandasReader(OasisReader):
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            if self.filename_or_buffer.startswith("http://") or self.filename_or_buffer.startswith("https://"):
+            if self.filename_or_buffer.startswith(
+                "http://"
+            ) or self.filename_or_buffer.startswith("https://"):
                 self.df = pd.read_parquet(self.filename_or_buffer, *args, **kwargs)
             else:
-                _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+                _, uri = self.storage.get_storage_url(
+                    self.filename_or_buffer, encode_params=False
+                )
                 self.df = pd.read_parquet(
                     uri,
                     *args,
@@ -186,6 +189,7 @@ class OasisPandasReader(OasisReader):
             df = df.drop(shape_df.columns.tolist() + ["index_right"], axis=1)
 
         return self.copy_with_df(df)
+
 
 class OasisPandasReaderCSV(OasisPandasReader):
     pass
@@ -285,7 +289,7 @@ class OasisDaskReader(OasisReader):
             filename_or_buffer = str(self.filename_or_buffer)
 
         if isinstance(filename_or_buffer, io.TextIOWrapper) or isinstance(
-                filename_or_buffer, io.BufferedReader
+            filename_or_buffer, io.BufferedReader
         ):
             filename_or_buffer = filename_or_buffer.name
 
@@ -294,11 +298,18 @@ class OasisDaskReader(OasisReader):
             filename_or_buffer = filename_or_buffer.path
 
         _, uri = self.storage.get_storage_url(filename_or_buffer, encode_params=False)
-        self.df = dd.read_csv(uri, *args, **dask_safe_kwargs, storage_options=self.storage.get_fsspec_storage_options())
+        self.df = dd.read_csv(
+            uri,
+            *args,
+            **dask_safe_kwargs,
+            storage_options=self.storage.get_fsspec_storage_options(),
+        )
 
     def read_parquet(self, *args, **kwargs):
         if isinstance(self.filename_or_buffer, str):
-            _, uri = self.storage.get_storage_url(self.filename_or_buffer, encode_params=False)
+            _, uri = self.storage.get_storage_url(
+                self.filename_or_buffer, encode_params=False
+            )
             self.df = dd.read_parquet(
                 uri,
                 *args,

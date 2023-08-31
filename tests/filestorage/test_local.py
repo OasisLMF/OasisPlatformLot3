@@ -5,7 +5,6 @@ import pytest
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 from lot3.filestore.config import get_storage_from_config
 
-
 pytest.skip(allow_module_level=True)
 
 

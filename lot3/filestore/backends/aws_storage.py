@@ -1,19 +1,11 @@
-from pathlib import Path
+import os
+from typing import Optional
 from urllib import parse
 
-import boto3
-import logging
-import os
-import tempfile
-import shutil
-
-from urllib.parse import urlsplit, parse_qsl
-
 import fsspec
-from botocore.exceptions import ClientError as S3_ClientError
 
-from .storage_manager import BaseStorageConnector
 from ..log import set_aws_log_level
+from .storage_manager import BaseStorageConnector
 
 
 class AwsObjectStore(BaseStorageConnector):
@@ -21,43 +13,43 @@ class AwsObjectStore(BaseStorageConnector):
 
     def __init__(
         self,
-        bucket_name=None,
-        access_key: str = None,
-        secret_key: str = None,
-        endpoint_url: str = None,
+        bucket_name: Optional[str] = None,
+        access_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
         file_overwrite=True,
-        object_parameters: dict = None,
+        object_parameters: Optional[dict] = None,
         auto_create_bucket=False,
-        default_acl: str = None,
-        bucket_acl: str = None,
+        default_acl: Optional[str] = None,
+        bucket_acl: Optional[str] = None,
         querystring_auth=False,
         querystring_expire=604800,
         reduced_redundancy=False,
-        location='',
+        location="",
         encryption=False,
         security_token=None,
         secure_urls=True,
-        file_name_charset='utf-8',
+        file_name_charset="utf-8",
         gzip=False,
         preload_metadata=False,
-        url_protocol='http:',
+        url_protocol="http:",
         region_name=None,
         use_ssl=True,
         verify=None,
         max_memory_size=0,
         shared_bucket=False,
-        aws_log_level='',
+        aws_log_level="",
         gzip_content_types=(
-            'text/css',
-            'text/javascript',
-            'application/javascript',
-            'application/x-javascript',
-            'image/svg+xml',
+            "text/css",
+            "text/javascript",
+            "application/javascript",
+            "application/x-javascript",
+            "image/svg+xml",
         ),
         root_dir="",
         **kwargs,
     ):
-        """ Storage Connector for Amazon S3
+        """Storage Connector for Amazon S3
 
         Store objects in a bucket common to a single worker pool. Returns a pre-signed URL
         as a response to the server which is downloaded and stored by Django-storage module
@@ -89,7 +81,7 @@ class AwsObjectStore(BaseStorageConnector):
         object_parameters = object_parameters or {}
 
         # Required
-        self.storage_connector = 'AWS-S3'
+        self.storage_connector = "AWS-S3"
         self._bucket = None
         self._connection = None
         self.bucket_name = bucket_name
@@ -170,7 +162,7 @@ class AwsObjectStore(BaseStorageConnector):
                 client_kwargs={
                     "endpoint_url": self.endpoint_url,
                 },
-            )
+            ),
         }
 
     # @property
@@ -477,7 +469,9 @@ class AwsObjectStore(BaseStorageConnector):
     #     self.bucket.upload_file(filepath, object_key, ExtraArgs=params)
 
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
-        filename = filename if filename is not None else self._get_unique_filename(suffix)
+        filename = (
+            filename if filename is not None else self._get_unique_filename(suffix)
+        )
 
         params = {}
         if encode_params:

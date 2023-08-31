@@ -16,6 +16,13 @@ def get_version():
         return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py.read()).group(1)
 
 
+def get_install_requirements():
+    with open(
+        os.path.join(SCRIPT_DIR, "requirements-package.in"), encoding="utf-8"
+    ) as reqs:
+        return reqs.readlines()
+
+
 version = get_version()
 
 
@@ -41,14 +48,7 @@ setup(
     author_email="support@oasislmf.org",
     keywords="",
     python_requires=">=3.6",
-    install_requires=[
-        "dask",
-        "dask-sql",
-        "geopandas",
-        "dask_geopandas",
-        "pyogrio",
-        "geodatasets",  # for testing only
-    ],
+    install_requires=get_install_requirements(),
     classifiers=[
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: BSD License",

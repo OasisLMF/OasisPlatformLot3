@@ -5,13 +5,12 @@ import pandas as pd
 import pytest
 
 from lot3.df_reader.exceptions import InvalidSQLException
-from lot3.df_reader.reader import (OasisDaskReaderParquet,
-                                   OasisPandasReaderParquet)
+from lot3.df_reader.reader import OasisDaskReaderParquet, OasisPandasReaderParquet
 from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet]
 
-storage = LocalStorageConnector('/')
+storage = LocalStorageConnector("/")
 
 
 @pytest.fixture
@@ -129,7 +128,9 @@ def test_read_parquet__dask__sql__invalid_sql(df):
         df.to_parquet(path=parquet.name, index=False)
 
         with pytest.raises(InvalidSQLException):
-            OasisDaskReaderParquet(parquet.name, storage).sql("SELECT X FROM table").as_pandas()
+            OasisDaskReaderParquet(parquet.name, storage).sql(
+                "SELECT X FROM table"
+            ).as_pandas()
 
 
 def test_read_parquet__dask__sql__no_data(df):

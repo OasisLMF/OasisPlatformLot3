@@ -32,7 +32,7 @@ def test_storage_constructed_from_config_matches_initial():
 
     result = get_storage_from_config(storage.to_config())
 
-    assert storage.root_dir == f"test_root"
+    assert storage.root_dir == "test_root"
     assert isinstance(result, AwsObjectStore)
     assert result.root_dir == "test_root"
     assert result.bucket_name == storage.bucket_name

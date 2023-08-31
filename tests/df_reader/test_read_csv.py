@@ -11,7 +11,7 @@ from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [OasisPandasReaderCSV, OasisDaskReaderCSV]
 
-storage = LocalStorageConnector('/')
+storage = LocalStorageConnector("/")
 
 
 @pytest.fixture

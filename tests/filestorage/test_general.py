@@ -49,6 +49,7 @@ storage_factories = [
 # get
 #
 
+
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -68,7 +69,9 @@ def test_get_copies_a_file_to_the_correct_location(storage_factory, content):
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
 def test_cannot_copy_outside_of_root(storage_factory, content):
-    with storage_factory(root_dir="root") as storage, TemporaryDirectory() as dst, TemporaryDirectory() as data:
+    with storage_factory(
+        root_dir="root"
+    ) as storage, TemporaryDirectory() as dst, TemporaryDirectory() as data:
         other_dir = os.path.join(storage.fs.path, "..", "other")
 
         with open(os.path.join(data, test_file_name), "w") as f:
@@ -85,6 +88,7 @@ def test_cannot_copy_outside_of_root(storage_factory, content):
 # put
 #
 
+
 @pytest.mark.parametrize("storage_factory", storage_factories)
 @given(content=text(alphabet=string.digits + string.ascii_letters))
 @settings(deadline=None)
@@ -95,7 +99,9 @@ def test_put_copies_a_file_to_the_correct_location(storage_factory, content):
 
         storage.put(os.path.join(src, test_file_name), filename=test_file_name)
 
-        with storage.fs.fs.open(os.path.join(storage.fs.path, test_file_name), "r") as f:
+        with storage.fs.fs.open(
+            os.path.join(storage.fs.path, test_file_name), "r"
+        ) as f:
             assert f.read() == content
 
 
@@ -118,6 +124,7 @@ def test_put_copies_directory_to_a_tar(storage_factory, content):
 # exists
 #
 
+
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_inside_root_doesnt_exist___exists_is_false(storage_factory):
     with storage_factory() as storage:
@@ -129,11 +136,13 @@ def test_path_outside_root_does_exist___exists_is_false(storage_factory):
     content = "content"
 
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, '..', 'other'))
-        with storage.fs.fs.open(os.path.join(storage.fs.path, '..', 'other', test_file_name), "w") as f:
+        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, "..", "other"))
+        with storage.fs.fs.open(
+            os.path.join(storage.fs.path, "..", "other", test_file_name), "w"
+        ) as f:
             f.write(content)
 
-        assert not storage.exists(os.path.join('..', 'other', test_file_name))
+        assert not storage.exists(os.path.join("..", "other", test_file_name))
 
 
 @pytest.mark.parametrize("storage_factory", storage_factories)
@@ -158,6 +167,7 @@ def test_dir_path_inside_root_does_exist___exists_is_true(storage_factory):
 #
 # isfile
 #
+
 
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_inside_root_doesnt_exist___isfile_is_false(storage_factory):
@@ -200,6 +210,7 @@ def test_dir_path_inside_root_does_exist___isfile_is_false(storage_factory):
 # delete_file
 #
 
+
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_outside_the_root___delete_file_fails(storage_factory):
     content = "content"
@@ -241,14 +252,19 @@ def test_path_is_inside_the_root_and_file___file_is_deleted(storage_factory):
 # delete_dir
 #
 
+
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_outside_the_root___delete_dir_fails(storage_factory):
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, "..", "other", test_file_name))
+        storage.fs.fs.mkdirs(
+            os.path.join(storage.fs.path, "..", "other", test_file_name)
+        )
 
         storage.delete_dir(os.path.join("..", "other", test_file_name))
 
-        assert storage.fs.fs.exists(os.path.join(storage.fs.path, "..", "other", test_file_name))
+        assert storage.fs.fs.exists(
+            os.path.join(storage.fs.path, "..", "other", test_file_name)
+        )
 
 
 @pytest.mark.parametrize("storage_factory", storage_factories)
