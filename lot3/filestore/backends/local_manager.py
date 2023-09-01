@@ -37,4 +37,5 @@ class LocalStorageConnector(BaseStorageConnector):
 
     @contextlib.contextmanager
     def with_fileno(self, path, mode="rb"):
-        yield self.open(path, mode)
+        with self.open(path, mode) as f:
+            yield f
