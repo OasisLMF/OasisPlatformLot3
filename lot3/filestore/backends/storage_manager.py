@@ -8,11 +8,12 @@ import tarfile
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Tuple, Type, Union
+from typing import Optional, Tuple, Type, Union
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
 import fsspec
+from fsspec.implementations.dirfs import DirFileSystem
 
 from lot3.errors import OasisException
 
@@ -27,6 +28,42 @@ class MissingInputsException(OasisException):
         )
 
 
+class StrictRootDirFs(DirFileSystem):
+    def _path_is_in_root(self, path):
+        return os.path.abspath(path).startswith(os.path.abspath(self.path))
+
+    def _join(self, path):
+        res = super()._join(path)
+
+        if isinstance(res, str):
+            if not self._path_is_in_root(res):
+                raise FileNotFoundError(path)
+        else:
+            for p in res:
+                if not self._path_is_in_root(p):
+                    raise FileNotFoundError(p)
+
+        return res
+
+    def exists(self, path):
+        try:
+            return super().exists(path)
+        except FileNotFoundError:
+            return False
+
+    def isfile(self, path):
+        try:
+            return super().isfile(path)
+        except FileNotFoundError:
+            return False
+
+    def isdir(self, path):
+        try:
+            return super().isdir(path)
+        except FileNotFoundError:
+            return False
+
+
 class BaseStorageConnector(object):
     """Base storage class
 
@@ -35,14 +72,17 @@ class BaseStorageConnector(object):
     """
 
     storage_connector: str
-    fsspec_filesystem_class: Type[fsspec.AbstractFileSystem]
+    fsspec_filesystem_class: Optional[Type[fsspec.AbstractFileSystem]]
 
-    def __init__(self, cache_dir: Union[str, None] = "/tmp/data-cache", logger=None):
+    def __init__(
+        self, root_dir="", cache_dir: Union[str, None] = "/tmp/data-cache", logger=None
+    ):
         # Use for caching files across multiple runs, set value 'None' or 'False' to disable
         self.cache_root = cache_dir
+        self.root_dir = root_dir
 
         self.logger = logger or logging.getLogger()
-        self._fs = None
+        self._fs: Optional[StrictRootDirFs] = None
 
     def to_config(self) -> dict:
         return {
@@ -325,7 +365,14 @@ class BaseStorageConnector(object):
     @property
     def fs(self) -> fsspec.AbstractFileSystem:
         if not self._fs:
-            self._fs = self.fsspec_filesystem_class(**self.get_fsspec_storage_options())
+            self._fs = StrictRootDirFs(
+                path=self.root_dir,
+                fs=(
+                    self.fsspec_filesystem_class(**self.get_fsspec_storage_options())
+                    if self.fsspec_filesystem_class
+                    else None
+                ),
+            )
         return self._fs
 
     def exists(self, path):
@@ -344,7 +391,8 @@ class BaseStorageConnector(object):
                 with open(self.get(path, d)) as f:
                     yield f
         else:
-            yield self.fs.open(path, *args, **kwargs)
+            with self.fs.open(path, *args, **kwargs) as f:
+                yield f
 
     @contextlib.contextmanager
     def with_fileno(self, path, mode="rb"):

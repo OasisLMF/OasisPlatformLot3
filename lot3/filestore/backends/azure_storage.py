@@ -12,7 +12,7 @@ from .storage_manager import BaseStorageConnector
 
 class AzureObjectStore(BaseStorageConnector):
     # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python
-    fsspec_filesystem_class = fsspec.get_filesystem_class("dir")
+    fsspec_filesystem_class = fsspec.get_filesystem_class("abfs")
 
     def __init__(
         self,
@@ -62,10 +62,16 @@ class AzureObjectStore(BaseStorageConnector):
         self.token_credential = token_credential
         self.azure_log_level = azure_log_level
         self.azure_protocol = "https" if self.azure_ssl else "http"
-        self.root_dir = location or root_dir
         self.endpoint_url = endpoint_url
         set_azure_log_level(self.azure_log_level)
-        super(AzureObjectStore, self).__init__(**kwargs)
+
+        root_dir = os.path.join(self.azure_container or "", root_dir or location or "")
+        if root_dir.startswith(os.path.sep):
+            root_dir = root_dir[1:]
+        if root_dir.endswith(os.path.sep):
+            root_dir = root_dir[:-1]
+
+        super(AzureObjectStore, self).__init__(root_dir=root_dir, **kwargs)
 
     @property
     def config_options(self):
@@ -221,12 +227,9 @@ class AzureObjectStore(BaseStorageConnector):
 
     def get_fsspec_storage_options(self):
         return {
-            "path": os.path.join(self.azure_container, self.root_dir),
-            "fs": fsspec.get_filesystem_class("abfs")(
-                anon=not self.account_key,
-                connection_string=self.connection_string,
-                use_ssl=self.azure_ssl,
-            ),
+            "anon": not self.account_key,
+            "connection_string": self.connection_string,
+            "use_ssl": self.azure_ssl,
         }
 
     @property

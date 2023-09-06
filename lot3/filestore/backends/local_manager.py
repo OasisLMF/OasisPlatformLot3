@@ -1,8 +1,6 @@
 import contextlib
 from pathlib import Path
 
-import fsspec
-
 from lot3.filestore.backends.storage_manager import BaseStorageConnector
 
 
@@ -13,12 +11,7 @@ class LocalStorageConnector(BaseStorageConnector):
     """
 
     storage_connector = "FS-SHARE"
-    fsspec_filesystem_class = fsspec.get_filesystem_class("dir")
-
-    def __init__(self, root_dir: str = "/", **kwargs):
-        self.root_dir = root_dir
-
-        super().__init__(**kwargs)
+    fsspec_filesystem_class = None
 
     @property
     def config_options(self):
@@ -33,7 +26,7 @@ class LocalStorageConnector(BaseStorageConnector):
         return filename, f"file://{Path(self.root_dir, filename)}"
 
     def get_fsspec_storage_options(self):
-        return {"path": self.root_dir}
+        return {}
 
     @contextlib.contextmanager
     def with_fileno(self, path, mode="rb"):

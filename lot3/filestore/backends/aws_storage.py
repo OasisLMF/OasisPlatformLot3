@@ -9,7 +9,7 @@ from .storage_manager import BaseStorageConnector
 
 
 class AwsObjectStore(BaseStorageConnector):
-    fsspec_filesystem_class = fsspec.get_filesystem_class("dir")
+    fsspec_filesystem_class = fsspec.get_filesystem_class("s3")
 
     def __init__(
         self,
@@ -113,9 +113,15 @@ class AwsObjectStore(BaseStorageConnector):
         self.shared_bucket = shared_bucket
         self.aws_log_level = aws_log_level
         self.gzip_content_types = gzip_content_types
-        self.root_dir = root_dir
         set_aws_log_level(self.aws_log_level)
-        super(AwsObjectStore, self).__init__(**kwargs)
+
+        root_dir = os.path.join(self.bucket_name or "", root_dir)
+        if root_dir.startswith(os.path.sep):
+            root_dir = root_dir[1:]
+        if root_dir.endswith(os.path.sep):
+            root_dir = root_dir[:-1]
+
+        super(AwsObjectStore, self).__init__(root_dir=root_dir, **kwargs)
 
     @property
     def config_options(self):
@@ -152,17 +158,14 @@ class AwsObjectStore(BaseStorageConnector):
 
     def get_fsspec_storage_options(self):
         return {
-            "path": os.path.join(self.bucket_name, self.root_dir),
-            "fs": fsspec.get_filesystem_class("s3")(
-                anon=not self.access_key and not self.security_token,
-                key=self.access_key,
-                secret=self.secret_key,
-                token=self.security_token,
-                use_ssl=self.use_ssl,
-                client_kwargs={
-                    "endpoint_url": self.endpoint_url,
-                },
-            ),
+            "anon": not self.access_key and not self.security_token,
+            "key": self.access_key,
+            "secret": self.secret_key,
+            "token": self.security_token,
+            "use_ssl": self.use_ssl,
+            "client_kwargs": {
+                "endpoint_url": self.endpoint_url,
+            },
         }
 
     # @property
@@ -492,5 +495,5 @@ class AwsObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"s3://{os.path.join(self.bucket_name, self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"s3://{self.root_dir}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )

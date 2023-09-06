@@ -10,6 +10,8 @@ services:
     environment:
       - DEBUG=${DEBUG-}
       - DOCKER_HOST=unix:///var/run/docker.sock
-    volumes:
-      - "${LOCALSTACK_VOLUME_DIR:-/tmp/localstack}:/var/lib/localstack"
-      - "/var/run/docker.sock:/var/run/docker.sock"
+  azurite:
+    container_name: "${AZURITE_DOCKER_NAME-azurite}"
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports:
+      - "127.0.0.1:10000:10000"
