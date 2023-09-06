@@ -1,0 +1,11 @@
+pandas
+geopandas
+dask
+dask-geopandas
+dask-sql
+fastparquet
+pyogrio
+fsspec
+boto3
+s3fs
+adlfs

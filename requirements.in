@@ -1,0 +1,15 @@
+-r ./requirements-package.txt
+
+pytest
+pytest-cov
+pytest-black
+flake8
+pytest-mypy
+pytest-isort
+types-boto3
+types-botocore
+types-setuptools
+pandas-stubs
+hypothesis
+geodatasets
+ipdb

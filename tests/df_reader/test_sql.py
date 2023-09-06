@@ -6,8 +6,11 @@ import pytest
 
 from lot3.df_reader.exceptions import InvalidSQLException
 from lot3.df_reader.reader import OasisDaskReaderCSV
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 # Test readers in more detail, base SQL is tested for both CSV and parquet separate to this.
+
+storage = LocalStorageConnector("/")
 
 
 @pytest.fixture
@@ -37,7 +40,7 @@ def _test_sql(df, sql):
             path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
         )
 
-        result = OasisDaskReaderCSV(csv.name).sql(sql).as_pandas()
+        result = OasisDaskReaderCSV(csv.name, storage).sql(sql).as_pandas()
         assert isinstance(result, pd.DataFrame)
         return result
 
@@ -53,8 +56,8 @@ def _test_sql(df, sql):
         "SELECT * FROM table WHERE C BETWEEN 1 AND 2",
         "SELECT * FROM table ORDER BY A",
         'SELECT COUNT(A) as "count_A" FROM table',
-        'SELECT UPPER(E) FROM table',
-        'SELECT LOWER(E) FROM table',
+        "SELECT UPPER(E) FROM table",
+        "SELECT LOWER(E) FROM table",
         'SELECT CONCAT(A, B) as "count_A" FROM table',
         'SELECT E, SUM(A) AS "sum_A" FROM table GROUP BY E',
         'SELECT E, AVG(A) AS "avg_A" FROM table GROUP BY E',
@@ -74,9 +77,8 @@ def test_sql__validity(sql, df):
         "SELECT Z FROM table",  # incorrect field
         "X",
         "SELECT SUM(Z) FROM table",  # incorrect field
-        'SELECT UPPER(A) FROM table',  # non char field
-        'SELECT LOWER(A) FROM table',  # non char field
-
+        "SELECT UPPER(A) FROM table",  # non char field
+        "SELECT LOWER(A) FROM table",  # non char field
     ),
 )
 def test_sql__validity__not(sql, df):

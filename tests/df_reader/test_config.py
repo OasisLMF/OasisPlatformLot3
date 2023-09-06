@@ -1,7 +1,6 @@
 import pytest
 
-from lot3.df_reader.config import get_df_reader, OasisReader
-from lot3.df_reader.config import ConfigError
+from lot3.df_reader.config import ConfigError, OasisReader, get_df_reader
 from lot3.df_reader.reader import OasisPandasReader
 
 
@@ -46,7 +45,10 @@ def test_dict_without_path_is_provided___error_is_raised():
     with pytest.raises(ConfigError) as exec_info:
         get_df_reader({})
 
-    assert str(exec_info.value) == "df_reader config must provide a 'filepath' property: {}"
+    expected = "df_reader config must provide a 'filepath' property: {}"
+    actual = str(exec_info.value)
+
+    assert actual == expected
 
 
 def test_no_engine_config_is_provided___default_is_used():
@@ -56,37 +58,41 @@ def test_no_engine_config_is_provided___default_is_used():
 
 
 def test_engine_config_is_string___object_created_without_options():
-    reader = get_df_reader({
-        "filepath": "testpath",
-        "engine": "tests.df_reader.test_config.DfReader",
-    })
+    reader = get_df_reader(
+        {
+            "filepath": "testpath",
+            "engine": "tests.df_reader.test_config.DfReader",
+        }
+    )
 
     assert type(reader) is DfReader
     assert reader.extra is None
 
 
 def test_engine_config_is_provided_without_options___object_created_without_options():
-    reader = get_df_reader({
-        "filepath": "testpath",
-        "engine": {
-            "path": "tests.df_reader.test_config.DfReader",
+    reader = get_df_reader(
+        {
+            "filepath": "testpath",
+            "engine": {
+                "path": "tests.df_reader.test_config.DfReader",
+            },
         }
-    })
+    )
 
     assert type(reader) is DfReader
     assert reader.extra is None
 
 
 def test_engine_config_is_provided_with_options___object_created_with_options():
-    reader = get_df_reader({
-        "filepath": "testpath",
-        "engine": {
-            "path": "tests.df_reader.test_config.DfReader",
-            "options": {
-                "extra": "test"
-            }
+    reader = get_df_reader(
+        {
+            "filepath": "testpath",
+            "engine": {
+                "path": "tests.df_reader.test_config.DfReader",
+                "options": {"extra": "test"},
+            },
         }
-    })
+    )
 
     assert type(reader) is DfReader
     assert reader.extra == "test"
@@ -94,57 +100,65 @@ def test_engine_config_is_provided_with_options___object_created_with_options():
 
 def test_path_is_not_absolute_path___error_is_raised():
     with pytest.raises(ConfigError) as exec_info:
-        get_df_reader({
-            "filepath": "test",
-            "engine": {
-                "path": "path_to_a_module",
-                "options": {
-                    "extra": "test value",
+        get_df_reader(
+            {
+                "filepath": "test",
+                "engine": {
+                    "path": "path_to_a_module",
+                    "options": {
+                        "extra": "test value",
+                    },
                 },
             }
-        })
+        )
 
     assert str(exec_info.value) == (
-        "'filepath' found in the df_reader config is not valid: path_to_a_module"
+        "'path' found in the df_reader config is not valid: path_to_a_module"
     )
 
 
 def test_module_doesnt_exist___error_is_raised():
     with pytest.raises(ImportError):
-        get_df_reader({
-            "filepath": "test",
-            "engine": {
-                "path": "tests.df_reader.test_config_other.DfReader",
-                "options": {
-                    "extra": "test value",
+        get_df_reader(
+            {
+                "filepath": "test",
+                "engine": {
+                    "path": "tests.df_reader.test_config_other.DfReader",
+                    "options": {
+                        "extra": "test value",
+                    },
                 },
             }
-        })
+        )
 
 
 def test_class_doesnt_exist_in_module___error_is_raised():
     with pytest.raises(AttributeError):
-        get_df_reader({
-            "filepath": "test",
-            "engine": {
-                "path": "tests.df_reader.test_config.OtherDfReader",
-                "options": {
-                    "extra": "test value",
+        get_df_reader(
+            {
+                "filepath": "test",
+                "engine": {
+                    "path": "tests.df_reader.test_config.OtherDfReader",
+                    "options": {
+                        "extra": "test value",
+                    },
                 },
             }
-        })
+        )
 
 
 def test_reader_isnt_an_instance_of_the_base_reader____error_is_raised():
     with pytest.raises(ConfigError) as exec_info:
-        get_df_reader({
-            "filepath": "test",
-            "engine": {
-                "path": "tests.df_reader.test_config.NotDfReader",
-                "options": {
-                    "extra": "test value",
+        get_df_reader(
+            {
+                "filepath": "test",
+                "engine": {
+                    "path": "tests.df_reader.test_config.NotDfReader",
+                    "options": {
+                        "extra": "test value",
+                    },
                 },
             }
-        })
+        )
 
     assert str(exec_info.value) == "'NotDfReader' does not extend 'OasisReader'"

@@ -5,10 +5,12 @@ import pandas as pd
 import pytest
 
 from lot3.df_reader.exceptions import InvalidSQLException
-from lot3.df_reader.reader import (OasisDaskReaderParquet,
-                                   OasisPandasReaderParquet)
+from lot3.df_reader.reader import OasisDaskReaderParquet, OasisPandasReaderParquet
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet]
+
+storage = LocalStorageConnector("/")
 
 
 @pytest.fixture
@@ -35,7 +37,7 @@ def test_read_parquet__expected_pandas_dataframe(reader, df):
     with NamedTemporaryFile(suffix=".parquet") as parquet:
         df.to_parquet(path=parquet.name, index=False)
 
-        result = reader(parquet.name).as_pandas()
+        result = reader(parquet.name, storage).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -61,7 +63,7 @@ def test_read_parquet__df_filter__expected_pandas_dataframe(reader, df):
         def sample_filter(filter_df):
             return filter_df[filter_df["E"] == "test"]
 
-        result = reader(parquet.name).filter([sample_filter]).as_pandas()
+        result = reader(parquet.name, storage).filter([sample_filter]).as_pandas()
 
         assert isinstance(result, pd.DataFrame)
         assert result.to_dict() == {
@@ -80,7 +82,7 @@ def test_read_parquet__df_filter__multiple__expected_pandas_dataframe(reader, df
         df.to_parquet(path=parquet.name, index=False)
 
         result = (
-            reader(parquet.name)
+            reader(parquet.name, storage)
             .filter(
                 [
                     lambda x: x[x["E"] == "test"],
@@ -105,7 +107,7 @@ def test_read_parquet__dask__sql__expected_pandas_dataframe(df):
         df.to_parquet(path=parquet.name, index=False)
 
         result = (
-            OasisDaskReaderParquet(parquet.name)
+            OasisDaskReaderParquet(parquet.name, storage)
             .sql("SELECT * FROM table WHERE E = 'test' AND B = '2023-01-02'")
             .as_pandas()
         )
@@ -126,7 +128,9 @@ def test_read_parquet__dask__sql__invalid_sql(df):
         df.to_parquet(path=parquet.name, index=False)
 
         with pytest.raises(InvalidSQLException):
-            OasisDaskReaderParquet(parquet.name).sql("SELECT X FROM table").as_pandas()
+            OasisDaskReaderParquet(parquet.name, storage).sql(
+                "SELECT X FROM table"
+            ).as_pandas()
 
 
 def test_read_parquet__dask__sql__no_data(df):
@@ -134,7 +138,7 @@ def test_read_parquet__dask__sql__no_data(df):
         df.to_parquet(path=parquet.name, index=False)
 
         result = (
-            OasisDaskReaderParquet(parquet.name)
+            OasisDaskReaderParquet(parquet.name, storage)
             .sql("SELECT * FROM table WHERE E = 'tester'")
             .as_pandas()
         )
