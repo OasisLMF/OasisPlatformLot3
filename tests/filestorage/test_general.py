@@ -57,7 +57,7 @@ def local_storage(root_dir="", **kwargs):
 
 storage_factories = [
     local_storage,
-    # abfs_storage,
+    abfs_storage,
     aws_storage,
 ]
 
@@ -89,7 +89,7 @@ def test_cannot_copy_outside_of_root(storage_factory, content):
     with storage_factory(
         root_dir="root"
     ) as storage, TemporaryDirectory() as dst, TemporaryDirectory() as data:
-        other_dir = os.path.join(storage.fs.path, "..", "other")
+        other_dir = os.path.join(os.path.dirname(storage.fs.path), "other")
 
         with open(os.path.join(data, test_file_name), "w") as f:
             f.write(content)
@@ -154,10 +154,10 @@ def test_path_outside_root_does_exist___exists_is_false(storage_factory):
     content = "content"
 
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, "..", "other"))
-        with storage.fs.fs.open(
-            os.path.join(storage.fs.path, "..", "other", test_file_name), "w"
-        ) as f:
+        other_dir = os.path.join(os.path.dirname(storage.fs.path), "other")
+
+        storage.fs.fs.mkdirs(other_dir)
+        with storage.fs.fs.open(os.path.join(other_dir, test_file_name), "w") as f:
             f.write(content)
 
         assert not storage.exists(os.path.join("..", "other", test_file_name))
@@ -202,10 +202,10 @@ def test_path_outside_root_does_exist___isfile_is_false(storage_factory):
     content = "content"
 
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, "..", "other"))
-        with storage.fs.fs.open(
-            os.path.join(storage.fs.path, "..", test_file_name), "w"
-        ) as f:
+        other_dir = os.path.join(os.path.dirname(storage.fs.path), "other")
+
+        storage.fs.fs.mkdirs(other_dir)
+        with storage.fs.fs.open(os.path.join(other_dir, test_file_name), "w") as f:
             f.write(content)
 
         assert not storage.isfile(os.path.join("..", "other", test_file_name))
@@ -244,17 +244,15 @@ def test_path_is_outside_the_root___delete_file_fails(storage_factory):
     content = "content"
 
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(os.path.join(storage.fs.path, "..", "other"))
-        with storage.fs.fs.open(
-            os.path.join(storage.fs.path, "..", "other", test_file_name), "w"
-        ) as f:
+        other_dir = os.path.join(os.path.dirname(storage.fs.path), "other")
+
+        storage.fs.fs.mkdirs(other_dir)
+        with storage.fs.fs.open(os.path.join(other_dir, test_file_name), "w") as f:
             f.write(content)
 
         storage.delete_file(os.path.join("..", "other", test_file_name))
 
-        assert storage.fs.fs.exists(
-            os.path.join(storage.fs.path, "..", "other", test_file_name)
-        )
+        assert storage.fs.fs.exists(os.path.join(other_dir, test_file_name))
 
 
 @pytest.mark.parametrize("storage_factory", storage_factories)
@@ -292,11 +290,11 @@ def test_path_is_inside_the_root_and_file___file_is_deleted(storage_factory):
 @pytest.mark.parametrize("storage_factory", storage_factories)
 def test_path_is_outside_the_root___delete_dir_fails(storage_factory):
     with storage_factory(root_dir="root") as storage:
-        storage.fs.fs.mkdirs(
-            os.path.join(storage.fs.path, "..", "other", test_dir_name)
-        )
+        other_dir = os.path.join(os.path.dirname(storage.fs.path), "other")
+
+        storage.fs.fs.mkdirs(os.path.join(other_dir, test_dir_name))
         with storage.fs.fs.open(
-            os.path.join(storage.fs.path, "..", "other", test_dir_name, "file"), "w"
+            os.path.join(other_dir, test_dir_name, "file"), "w"
         ) as f:
             # write to a file to ensure storages that dont actually have
             # directories such as s3 still have the dir present
@@ -304,9 +302,7 @@ def test_path_is_outside_the_root___delete_dir_fails(storage_factory):
 
         storage.delete_dir(os.path.join("..", "other", test_dir_name))
 
-        assert storage.fs.fs.exists(
-            os.path.join(storage.fs.path, "..", "other", test_dir_name)
-        )
+        assert storage.fs.fs.exists(os.path.join(other_dir, test_dir_name))
 
 
 @pytest.mark.parametrize("storage_factory", storage_factories)
