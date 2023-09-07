@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 from urllib import parse
 
@@ -93,7 +94,7 @@ class AzureObjectStore(BaseStorageConnector):
             "custom_domain": self.custom_domain,
             "token_credential": self.token_credential,
             "azure_log_level": self.azure_log_level,
-            "root_dir": self.root_dir,
+            "root_dir": str(Path(self.root_dir).relative_to(self.azure_container)),
             "endpoint_url": self.endpoint_url,
         }
 

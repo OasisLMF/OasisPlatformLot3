@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional
 from urllib import parse
 
@@ -152,8 +153,8 @@ class AwsObjectStore(BaseStorageConnector):
             "max_memory_size": self.max_memory_size,
             "shared_bucket": self.shared_bucket,
             "aws_log_level": self.aws_log_level,
+            "root_dir": str(Path(self.root_dir).relative_to(self.bucket_name)),
             "gzip_content_types": self.gzip_content_types,
-            "root_dir": self.root_dir,
         }
 
     def get_fsspec_storage_options(self):
