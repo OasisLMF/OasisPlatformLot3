@@ -1,7 +1,11 @@
 import contextlib
+import os
 from pathlib import Path
 
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.storage_manager import (
+    BaseStorageConnector,
+    MissingInputsException,
+)
 
 
 class LocalStorageConnector(BaseStorageConnector):
@@ -32,3 +36,13 @@ class LocalStorageConnector(BaseStorageConnector):
     def with_fileno(self, path, mode="rb"):
         with self.open(path, mode) as f:
             yield f
+
+    def get_from_cache(self, reference, required=False, no_cache_target=None):
+        # null ref given
+        if not reference:
+            if required:
+                raise MissingInputsException(reference)
+            else:
+                return None
+
+        return self.fs._join(reference)

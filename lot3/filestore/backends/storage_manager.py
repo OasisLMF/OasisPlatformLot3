@@ -170,27 +170,61 @@ class BaseStorageConnector(object):
         with tarfile.open(archive_fp, "w:gz") as tar:
             tar.add(directory, arcname=arcname)
 
-    def with_cache(self, callback, fname, target):
-        # Check and copy file if cached
+    def get_from_cache(self, reference, required=False, no_cache_target=None):
+        """
+        Retrieves a file from the storage and stores it in the cache.
+        If it already exists in te cache the fetching step will be skipped
+
+        If URL: download the object and place in `output_dir`
+        If Filename: return stored file path of the shared object
+
+        Parameters
+        ----------
+        :param reference: Filename or download URL
+        :type  reference: str
+
+        :param no_cache_target: A path to store the file at if no cache root is set
+        :type  no_cache_target: str
+
+        :return: Absolute filepath to stored Object
+        :rtype str
+        """
+        # null ref given
+        if not reference:
+            if required:
+                raise MissingInputsException(reference)
+            else:
+                return None
+
+        # check if the file is in the cache, if so return that path
+        cache_filename = base64.b64encode(reference.encode()).decode()
         if self.cache_root:
-            cache_filename = base64.b64encode(fname.encode()).decode()
             cached_file = os.path.join(self.cache_root, cache_filename)
-            if os.path.isfile(cached_file):
-                logging.info("Get from Cache: {}".format(fname))
-                shutil.copyfile(cached_file, target)
-                return os.path.abspath(target)
+        else:
+            os.makedirs(os.path.dirname(no_cache_target), exist_ok=True)
+            cached_file = no_cache_target
 
-        callback()
-
-        # Store in cache if enabled
         if self.cache_root:
-            os.makedirs(os.path.dirname(cached_file), exist_ok=True)
-            shutil.copyfile(target, cached_file)
+            if os.path.isfile(cached_file):
+                logging.info("Get from Cache: {}".format(reference))
+                return cached_file
 
-        return os.path.abspath(target)
+        if self._is_valid_url(reference):
+            # if the file is not in the path, and is a url download it to the cache
+            response = urlopen(reference)
+            fdata = response.read()
+
+            with io.open(cached_file, "w+b") as f:
+                f.write(fdata)
+                logging.info("Get from URL: {}".format(reference))
+        else:
+            # otherwise get it from teh storage and add it to the cache
+            self.fs.get(reference, cached_file)
+
+        return cached_file
 
     def get(self, reference, output_path="", subdir="", required=False):
-        """Retrieve stored object
+        """Retrieve stored object and stores it in the output path
 
         Top level 'get from storage' function
         Check if `reference` is either download `URL` or filename
@@ -212,56 +246,25 @@ class BaseStorageConnector(object):
         :return: Absolute filepath to stored Object
         :rtype str
         """
-        # null ref given
-        if not reference:
-            if required:
-                raise MissingInputsException(reference)
-            else:
-                return None
+        target = os.path.abspath(
+            os.path.join(output_path, subdir) if subdir else output_path
+        )
 
-        target = os.path.join(output_path, subdir) if subdir else output_path
-        os.makedirs(os.path.dirname(target), exist_ok=True)
+        if os.path.isdir(target):
+            fname = reference
+            if self._is_valid_url(reference):
+                fname = os.path.basename(urlparse(reference).path)
 
-        # Download if URL ref
-        if self._is_valid_url(reference):
-            response = urlopen(reference)
-            fdata = response.read()
-            header_fname = response.headers.get("Content-Disposition", "").split(
-                "filename="
-            )[-1]
-            fname = (
-                header_fname
-                if header_fname
-                else os.path.basename(urlparse(reference).path)
-            )
+            target = os.path.join(output_path, fname)
 
-            if os.path.isdir(target):
-                target = os.path.join(output_path, fname)
-            else:
-                target = output_path
+        res = self.get_from_cache(reference, required=required, no_cache_target=target)
+        if res:
+            if res != target:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copy(res, target)
+            return target
 
-            # Download if not cached
-            def download_content():
-                with io.open(target, "w+b") as f:
-                    f.write(fdata)
-                    logging.info("Get from URL: {}".format(fname))
-
-            return self.with_cache(
-                download_content,
-                fname,
-                target,
-            )
-        else:
-            if os.path.isdir(target):
-                target = os.path.join(target, reference)
-            else:
-                target = target
-
-            return self.with_cache(
-                lambda: self.fs.get(reference, target),
-                reference,
-                target,
-            )
+        return None
 
     def put(self, reference, filename=None, subdir="", suffix=None, arcname=None):
         """Place object in storage
