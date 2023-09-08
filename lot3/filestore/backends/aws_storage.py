@@ -1,3 +1,4 @@
+import contextlib
 import os
 from pathlib import Path
 from typing import Optional
@@ -158,12 +159,21 @@ class AwsObjectStore(BaseStorageConnector):
         }
 
     def get_fsspec_storage_options(self):
+        s3_additional_kwargs = {}
+        if self.default_acl:
+            s3_additional_kwargs["ACL"] = self.default_acl
+        if self.encryption:
+            s3_additional_kwargs["ServerSideEncryption"] = "AES256"
+        if self.reduced_redundancy:
+            s3_additional_kwargs["StorageClass"] = "REDUCED_REDUNDANCY"
+
         return {
             "anon": not self.access_key and not self.security_token,
             "key": self.access_key,
             "secret": self.secret_key,
             "token": self.security_token,
             "use_ssl": self.use_ssl,
+            "s3_additional_kwargs": s3_additional_kwargs,
             "client_kwargs": {
                 "endpoint_url": self.endpoint_url,
             },
@@ -496,5 +506,13 @@ class AwsObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"s3://{self.root_dir}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"s3://{os.path.join(self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )
+
+    @contextlib.contextmanager
+    def open(self, path, *args, **kwargs):
+        if self.default_acl:
+            kwargs.setdefault("acl", self.default_acl)
+
+        with super().open(path, *args, **kwargs) as f:
+            yield f

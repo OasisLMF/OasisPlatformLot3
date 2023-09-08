@@ -1,7 +1,9 @@
 import os.path
+import tempfile
 import uuid
 
 import pytest
+from fsspec.asyn import sync
 
 from lot3.filestore.backends.aws_storage import AwsObjectStore
 from lot3.filestore.config import get_storage_from_config
@@ -35,3 +37,74 @@ def test_storage_constructed_from_config_matches_initial():
     assert isinstance(result, AwsObjectStore)
     assert result.root_dir == storage.root_dir
     assert result.bucket_name == storage.bucket_name
+
+
+@pytest.mark.parametrize("acl", ["public-read-write", "public-read"])
+def test_uploaded_file_has_the_correct_acl(acl):
+    storage = make_storage(default_acl=acl)
+
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write("content")
+        f.flush()
+
+        storage.put(f.name, "test_file")
+
+    res = sync(
+        storage.fs.fs.loop,
+        storage.fs.fs.s3.get_object_acl,
+        Bucket=storage.bucket_name,
+        Key="test_file",
+    )
+
+    writable = acl == "public-read-write"
+    assert {
+        "Grantee": {
+            "Type": "Group",
+            "URI": "http://acs.amazonaws.com/groups/global/AllUsers",
+        },
+        "Permission": "READ",
+    } in res["Grants"]
+    assert writable == (
+        {
+            "Grantee": {
+                "Type": "Group",
+                "URI": "http://acs.amazonaws.com/groups/global/AllUsers",
+            },
+            "Permission": "WRITE",
+        }
+        in res["Grants"]
+    )
+
+
+@pytest.mark.parametrize("acl", ["public-read-write", "public-read"])
+def test_written_file_has_the_correct_acl(acl):
+    storage = make_storage(default_acl=acl)
+
+    with storage.open("test_file", "w") as f:
+        f.write("content")
+
+    res = sync(
+        storage.fs.fs.loop,
+        storage.fs.fs.s3.get_object_acl,
+        Bucket=storage.bucket_name,
+        Key="test_file",
+    )
+
+    writable = acl == "public-read-write"
+    assert {
+        "Grantee": {
+            "Type": "Group",
+            "URI": "http://acs.amazonaws.com/groups/global/AllUsers",
+        },
+        "Permission": "READ",
+    } in res["Grants"]
+    assert writable == (
+        {
+            "Grantee": {
+                "Type": "Group",
+                "URI": "http://acs.amazonaws.com/groups/global/AllUsers",
+            },
+            "Permission": "WRITE",
+        }
+        in res["Grants"]
+    )

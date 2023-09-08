@@ -269,5 +269,5 @@ class AzureObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"abfs://{os.path.join(self.azure_container, self.root_dir)}/{filename}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"abfs://{os.path.join(self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )
