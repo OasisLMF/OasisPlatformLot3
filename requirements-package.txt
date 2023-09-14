@@ -113,7 +113,7 @@ frozenlist==1.4.0
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2023.6.0
+fsspec==2023.9.0
     # via
     #   -r requirements-package.in
     #   adlfs
@@ -225,7 +225,7 @@ requests==2.31.0
     #   azure-core
     #   azure-datalake-store
     #   msal
-s3fs==2023.6.0
+s3fs==2023.9.0
     # via -r requirements-package.in
 s3transfer==0.6.2
     # via boto3

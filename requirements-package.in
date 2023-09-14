@@ -7,5 +7,5 @@ fastparquet
 pyogrio
 fsspec
 boto3
-s3fs
+s3fs>=2023.9.0
 adlfs

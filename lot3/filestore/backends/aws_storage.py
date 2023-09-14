@@ -1,4 +1,6 @@
+import contextlib
 import os
+from pathlib import Path
 from typing import Optional
 from urllib import parse
 
@@ -9,7 +11,7 @@ from .storage_manager import BaseStorageConnector
 
 
 class AwsObjectStore(BaseStorageConnector):
-    fsspec_filesystem_class = fsspec.get_filesystem_class("dir")
+    fsspec_filesystem_class = fsspec.get_filesystem_class("s3")
 
     def __init__(
         self,
@@ -113,9 +115,15 @@ class AwsObjectStore(BaseStorageConnector):
         self.shared_bucket = shared_bucket
         self.aws_log_level = aws_log_level
         self.gzip_content_types = gzip_content_types
-        self.root_dir = root_dir
         set_aws_log_level(self.aws_log_level)
-        super(AwsObjectStore, self).__init__(**kwargs)
+
+        root_dir = os.path.join(self.bucket_name or "", root_dir)
+        if root_dir.startswith(os.path.sep):
+            root_dir = root_dir[1:]
+        if root_dir.endswith(os.path.sep):
+            root_dir = root_dir[:-1]
+
+        super(AwsObjectStore, self).__init__(root_dir=root_dir, **kwargs)
 
     @property
     def config_options(self):
@@ -146,23 +154,29 @@ class AwsObjectStore(BaseStorageConnector):
             "max_memory_size": self.max_memory_size,
             "shared_bucket": self.shared_bucket,
             "aws_log_level": self.aws_log_level,
+            "root_dir": str(Path(self.root_dir).relative_to(self.bucket_name)),
             "gzip_content_types": self.gzip_content_types,
-            "root_dir": self.root_dir,
         }
 
     def get_fsspec_storage_options(self):
+        s3_additional_kwargs = {}
+        if self.default_acl:
+            s3_additional_kwargs["ACL"] = self.default_acl
+        if self.encryption:
+            s3_additional_kwargs["ServerSideEncryption"] = "AES256"
+        if self.reduced_redundancy:
+            s3_additional_kwargs["StorageClass"] = "REDUCED_REDUNDANCY"
+
         return {
-            "path": os.path.join(self.bucket_name, self.root_dir),
-            "fs": fsspec.get_filesystem_class("s3")(
-                anon=not self.access_key and not self.security_token,
-                key=self.access_key,
-                secret=self.secret_key,
-                token=self.security_token,
-                use_ssl=self.use_ssl,
-                client_kwargs={
-                    "endpoint_url": self.endpoint_url,
-                },
-            ),
+            "anon": not self.access_key and not self.security_token,
+            "key": self.access_key,
+            "secret": self.secret_key,
+            "token": self.security_token,
+            "use_ssl": self.use_ssl,
+            "s3_additional_kwargs": s3_additional_kwargs,
+            "client_kwargs": {
+                "endpoint_url": self.endpoint_url,
+            },
         }
 
     # @property
@@ -396,77 +410,6 @@ class AwsObjectStore(BaseStorageConnector):
     #         return url
     #     else:
     #         return self._strip_signing_parameters(url)
-    #
-    # def delete_file(self, reference):
-    #     """ Delete single Onject from S3 where
-    #         reference = object key
-    #     """
-    #
-    #     del_request = {
-    #         'Objects': [{'Key': os.path.join(self.location, reference)}],
-    #         'Quiet': False
-    #     }
-    #     rsp = self.bucket.delete_objects(Delete=del_request)
-    #     errors = rsp.get('Errors')
-    #     deleted = rsp.get('Delete')
-    #
-    #     if errors:
-    #         self.logger.info(errors)
-    #     if deleted and not errors:
-    #         self.logger.info('Delete S3: {}'.format([obj['Key'] for obj in deleted]))
-    #
-    # def delete_dir(self, reference):
-    #     """ Delete multiple Objects from S3 where
-    #         'reference' is used to match keys of multiple stored Objects
-    #     """
-    #
-    #     key_prefix = os.path.join(self.location, reference)
-    #     matching_obj = [{'Key': o.key} for o in self.bucket.objects.filter(Prefix=key_prefix)]
-    #     del_request = {
-    #         'Objects': matching_obj,
-    #         'Quiet': False
-    #     }
-    #     rsp = self.bucket.delete_objects(Delete=del_request)
-    #     self.logger.info(rsp)
-    #     errors = rsp.get('Errors')
-    #     deleted = rsp.get('Delete')
-    #
-    #     if errors:
-    #         self.logger.info(errors)
-    #     if deleted and not errors:
-    #         self.logger.info('Delete S3: {}'.format([obj['Key'] for obj in deleted]))
-    #
-    # def upload(self, object_name, filepath, ExtraArgs=None):
-    #     """ Wrapper for BOTO3 bucket upload
-    #
-    #     Documentation
-    #     -------------
-    #     https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.upload_file
-    #
-    #
-    #     Parameters
-    #     ----------
-    #     :param object_name: 'key' or object name to upload as
-    #     :type  object_name: str
-    #
-    #     :param filepath: The path to the file to upload.
-    #     :type  filepath: str
-    #
-    #     :param ExtraArgs: Extra arguments that may be passed to the client operation.
-    #     :type  ExtraArgs: dict
-    #
-    #     :return: None
-    #     """
-    #     object_key = os.path.join(self.location, object_name)
-    #     params = ExtraArgs.copy() if ExtraArgs else {}
-    #     if self.encryption:
-    #         params['ServerSideEncryption'] = 'AES256'
-    #     if self.reduced_redundancy:
-    #         params['StorageClass'] = 'REDUCED_REDUNDANCY'
-    #     if self.default_acl:
-    #         params['ACL'] = self.default_acl
-    #
-    #     self.bucket.upload_file(filepath, object_key, ExtraArgs=params)
 
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
         filename = (
@@ -492,5 +435,13 @@ class AwsObjectStore(BaseStorageConnector):
 
         return (
             filename,
-            f"s3://{os.path.join(self.bucket_name, self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
+            f"s3://{os.path.join(self.root_dir, filename)}{'?' if params else ''}{parse.urlencode(params) if params else ''}",
         )
+
+    @contextlib.contextmanager
+    def open(self, path, *args, **kwargs):
+        if self.default_acl:
+            kwargs.setdefault("acl", self.default_acl)
+
+        with super().open(path, *args, **kwargs) as f:
+            yield f

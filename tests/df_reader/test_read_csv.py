@@ -125,7 +125,7 @@ def test_read_csv__dask__removes_bad_kwargs(df):
         assert dask_read_csv.call_args[0][0] == f"file://{csv.name}"
         assert len(dask_read_csv.call_args[1]) == 2
         assert dask_read_csv.call_args[1]["encoding"] == "utf-8"
-        assert dask_read_csv.call_args[1]["storage_options"] == {"path": "/"}
+        assert dask_read_csv.call_args[1]["storage_options"] == {}
 
 
 def test_read_csv__dask__sql__expected_pandas_dataframe(df):
