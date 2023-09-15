@@ -40,16 +40,27 @@ class OasisReader:
         **kwargs
     ):
         self.filename_or_buffer = filename_or_buffer
-
         self.storage = storage
         self._df = dataframe
         self.has_read = has_read
         self.reader_args = args
         self.reader_kwargs = kwargs
 
-        if isinstance(
-            self.filename_or_buffer, str
-        ) and self.filename_or_buffer.lower().endswith(".zip"):
+        if not filename_or_buffer:
+            if dataframe is None and not has_read:
+                raise RuntimeError(
+                    "Reader must be initialised with either a "
+                    "filename_or_buffer or by passing a dataframe "
+                    "and has_read=True"
+                )
+            else:
+                self.read_from_dataframe()
+
+        if (
+            filename_or_buffer
+            and isinstance(self.filename_or_buffer, str)
+            and self.filename_or_buffer.lower().endswith(".zip")
+        ):
             self.reader_kwargs["compression"] = "zip"
 
     @property
@@ -98,9 +109,6 @@ class OasisReader:
 
         return self.copy_with_df(df)
 
-    def apply_filter(self, filters):
-        pass
-
     def sql(self, sql):
         if sql:
             self._read()
@@ -113,6 +121,9 @@ class OasisReader:
     def as_pandas(self):
         self._read()
         return self.df
+
+    def read_from_dataframe(self):
+        pass
 
 
 class OasisPandasReader(OasisReader):
@@ -274,9 +285,16 @@ class OasisDaskReader(OasisReader):
         except ParsingException:
             raise InvalidSQLException
 
+    def read_from_dataframe(self):
+        if not isinstance(self.df, dd.DataFrame):
+            self.df = dd.from_pandas(self.df, npartitions=1)
+
     def as_pandas(self):
         super().as_pandas()
         return self.df.compute()
+
+    def read_dict(self, data):
+        self.df = dd.DataFrame.from_dict(data)
 
     def read_csv(self, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.
