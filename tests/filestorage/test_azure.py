@@ -1,6 +1,8 @@
 import os.path
 import uuid
 
+import urllib3
+
 from lot3.filestore.backends.azure_storage import AzureObjectStore
 from lot3.filestore.config import get_storage_from_config
 
@@ -37,3 +39,15 @@ def test_storage_constructed_from_config_matches_initial():
     assert isinstance(result, AzureObjectStore)
     assert result.root_dir == storage.root_dir
     assert result.azure_container == storage.azure_container
+
+
+def test_presigned_url():
+    storage = make_storage()
+
+    with storage.open("test_file", "w") as f:
+        f.write("content")
+
+    url = storage.url("test_file")
+
+    res = urllib3.PoolManager().request("GET", url)
+    assert res.data.decode() == "content"
