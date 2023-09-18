@@ -3,8 +3,10 @@ import os
 from pathlib import Path
 from typing import Optional
 from urllib import parse
+from urllib.parse import parse_qsl, urlsplit
 
 import fsspec
+from fsspec.asyn import sync
 
 from ..log import set_aws_log_level
 from .storage_manager import BaseStorageConnector
@@ -340,76 +342,85 @@ class AwsObjectStore(BaseStorageConnector):
     #         # Return URL
     #         return self.url(object_name)
     #
-    # def _strip_signing_parameters(self, url):
-    #     """ Duplicated Unsiged URLs from Django-Stroage
-    #
-    #     Method from: https://github.com/jschneier/django-storages/blob/master/storages/backends/s3boto3.py
-    #
-    #     Boto3 does not currently support generating URLs that are unsigned. Instead we
-    #     take the signed URLs and strip any querystring params related to signing and expiration.
-    #     Note that this may end up with URLs that are still invalid, especially if params are
-    #     passed in that only work with signed URLs, e.g. response header params.
-    #     The code attempts to strip all query parameters that match names of known parameters
-    #     from v2 and v4 signatures, regardless of the actual signature version used.
-    #     """
-    #     split_url = urlsplit(url)
-    #     qs = parse_qsl(split_url.query, keep_blank_values=True)
-    #     blacklist = {
-    #         'x-amz-algorithm', 'x-amz-credential', 'x-amz-date',
-    #         'x-amz-expires', 'x-amz-signedheaders', 'x-amz-signature',
-    #         'x-amz-security-token', 'awsaccesskeyid', 'expires', 'signature',
-    #     }
-    #     filtered_qs = ((key, val) for key, val in qs if key.lower() not in blacklist)
-    #     # Note: Parameters that did not have a value in the original query string will have
-    #     # an '=' sign appended to it, e.g ?foo&bar becomes ?foo=&bar=
-    #     joined_qs = ('='.join(keyval) for keyval in filtered_qs)
-    #     split_url = split_url._replace(query="&".join(joined_qs))
-    #     return split_url.geturl()
-    #
-    # def url(self, object_name, parameters=None, expire=None):
-    #     """ Return Pre-signed URL
-    #
-    #     Download URL to `object_name` in the connected bucket with a
-    #     fixed expire time
-    #
-    #     Documentation
-    #     -------------
-    #     https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-presigned-urls.html
-    #
-    #
-    #     Parameters
-    #     ----------
-    #     :param object_name: 'key' or name of object in bucket
-    #     :type  object_name: str
-    #
-    #     :param parameters: Dictionary of parameters to send to the method (BOTO3)
-    #     :type  parameters: dict
-    #
-    #     :param expire: Time in seconds for the presigned URL to remain valid
-    #     :type  expire: int
-    #
-    #     :return: Presigned URL as string. If error, returns None.
-    #     :rtype str
-    #     """
-    #     params = parameters.copy() if parameters else {}
-    #     params['Bucket'] = self.bucket.name
-    #     if self.location:
-    #         params['Key'] = os.path.join(self.location, object_name)
-    #     else:
-    #         params['Key'] = object_name
-    #
-    #     if expire is None:
-    #         expire = self.querystring_expire
-    #
-    #     url = self.bucket.meta.client.generate_presigned_url(
-    #         'get_object',
-    #         Params=params,
-    #         ExpiresIn=expire)
-    #
-    #     if self.querystring_auth:
-    #         return url
-    #     else:
-    #         return self._strip_signing_parameters(url)
+    def _strip_signing_parameters(self, url):
+        """Duplicated Unsiged URLs from Django-Stroage
+
+        Method from: https://github.com/jschneier/django-storages/blob/master/storages/backends/s3boto3.py
+
+        Boto3 does not currently support generating URLs that are unsigned. Instead we
+        take the signed URLs and strip any querystring params related to signing and expiration.
+        Note that this may end up with URLs that are still invalid, especially if params are
+        passed in that only work with signed URLs, e.g. response header params.
+        The code attempts to strip all query parameters that match names of known parameters
+        from v2 and v4 signatures, regardless of the actual signature version used.
+        """
+        split_url = urlsplit(url)
+        qs = parse_qsl(split_url.query, keep_blank_values=True)
+        blacklist = {
+            "x-amz-algorithm",
+            "x-amz-credential",
+            "x-amz-date",
+            "x-amz-expires",
+            "x-amz-signedheaders",
+            "x-amz-signature",
+            "x-amz-security-token",
+            "awsaccesskeyid",
+            "expires",
+            "signature",
+        }
+        filtered_qs = ((key, val) for key, val in qs if key.lower() not in blacklist)
+        # Note: Parameters that did not have a value in the original query string will have
+        # an '=' sign appended to it, e.g ?foo&bar becomes ?foo=&bar=
+        joined_qs = ("=".join(keyval) for keyval in filtered_qs)
+        split_url = split_url._replace(query="&".join(joined_qs))
+        return split_url.geturl()
+
+    def url(self, object_name, parameters=None, expire=None):
+        """Return Pre-signed URL
+
+        Download URL to `object_name` in the connected bucket with a
+        fixed expire time
+
+        Documentation
+        -------------
+        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-presigned-urls.html
+
+
+        Parameters
+        ----------
+        :param object_name: 'key' or name of object in bucket
+        :type  object_name: str
+
+        :param parameters: Dictionary of parameters to send to the method (BOTO3)
+        :type  parameters: dict
+
+        :param expire: Time in seconds for the presigned URL to remain valid
+        :type  expire: int
+
+        :return: Presigned URL as string. If error, returns None.
+        :rtype str
+        """
+        params = parameters.copy() if parameters else {}
+        params["Bucket"] = self.bucket_name
+        params["Key"] = self.fs._join(object_name).split("/", 1)[
+            -1
+        ]  # strip the bucket name
+
+        if expire is None:
+            expire = self.querystring_expire
+
+        url = sync(
+            self.fs.fs.loop,
+            self.fs.fs.s3.generate_presigned_url,
+            "get_object",
+            Params=params,
+            ExpiresIn=expire,
+        )
+
+        if self.querystring_auth:
+            return url
+        else:
+            return self._strip_signing_parameters(url)
 
     def get_storage_url(self, filename=None, suffix="tar.gz", encode_params=True):
         filename = (

@@ -1,5 +1,4 @@
 import contextlib
-import os
 from pathlib import Path
 
 from lot3.filestore.backends.storage_manager import (
