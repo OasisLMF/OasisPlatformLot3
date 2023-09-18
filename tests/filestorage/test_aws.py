@@ -3,6 +3,7 @@ import tempfile
 import uuid
 
 import pytest
+import urllib3
 from fsspec.asyn import sync
 
 from lot3.filestore.backends.aws_storage import AwsObjectStore
@@ -108,3 +109,15 @@ def test_written_file_has_the_correct_acl(acl):
         }
         in res["Grants"]
     )
+
+
+def test_presigned_url():
+    storage = make_storage(querystring_auth=True, default_acl="public-read")
+
+    with storage.open("test_file", "w") as f:
+        f.write("content")
+
+    url = storage.url("test_file")
+
+    res = urllib3.PoolManager().request("GET", url)
+    assert res.data.decode() == "content"

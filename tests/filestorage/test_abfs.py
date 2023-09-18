@@ -1,7 +1,6 @@
 import os.path
 import uuid
 
-from lot3.filestore.backends.aws_storage import AwsObjectStore
 from lot3.filestore.backends.azure_storage import AzureObjectStore
 from lot3.filestore.config import get_storage_from_config
 
