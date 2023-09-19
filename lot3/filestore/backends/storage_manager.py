@@ -391,7 +391,9 @@ class BaseStorageConnector(object):
     def open(self, path, *args, **kwargs):
         if self._is_valid_url(path):
             with tempfile.TemporaryDirectory() as d:
-                with open(self.get(path, d)) as f:
+                with open(
+                    self.get_from_cache(path, no_cache_target=os.path.join(d, "f"))
+                ) as f:
                     yield f
         else:
             with self.fs.open(path, *args, **kwargs) as f:
@@ -401,6 +403,7 @@ class BaseStorageConnector(object):
     def with_fileno(self, path, mode="rb"):
         with tempfile.TemporaryDirectory() as d:
             target = os.path.join(d, "fileno")
-            self.get(path, target)
+            path = self.get_from_cache(path, no_cache_target=target)
 
-            yield open(target, mode)
+            with open(path, mode) as f:
+                yield f
