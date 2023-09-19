@@ -45,7 +45,10 @@ def test_fetch__success(storage_factory):
         instance.storage = storage
         result = instance.fetch()
 
-    assert result == test_content
+    if hasattr(result, "read"):
+        result = result.read()
+
+    assert result.decode() == test_content
 
 
 @pytest.mark.parametrize("storage_factory", storage_factories)

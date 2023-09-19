@@ -1,9 +1,8 @@
-import enum
 import logging
 import os
 import pathlib
 from io import BytesIO
-from typing import List
+from typing import List, Type
 
 import httpcore
 import httpx
@@ -12,52 +11,48 @@ import pandas as pd
 from lot3.df_reader.config import InputReaderConfig, clean_config, get_df_reader
 from lot3.df_reader.reader import OasisReader
 from lot3.filestore.backends.local_manager import LocalStorageConnector
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
 
 logger = logging.getLogger(__name__)
 
 
 class Adjustment:
+    """
+    Adjustments are any Pandas adjustments made after the data is fetched and filtered by SQL if applicable.
+    """
+
     @classmethod
     def apply(cls, df):
         return df
 
 
 class ComplexData:
-    adjustments: List[Adjustment] = []
+    adjustments: List[Type[Adjustment]] = []
     filename: str = ""
     url: str = ""
     fetch_required: bool = True
+    sql: str = ""
+
+    def __init__(self, storage=None):
+        if not storage:
+            storage = LocalStorageConnector()
+        self.storage = storage
 
     def fetch(self):
         raise NotImplementedError
+
+    def get_sql(self):
+        return self.sql
 
     def adjust(self, reader) -> OasisReader:
         """
         Hook to apply any adjustments.
 
-        TODO in reality adjustments are filters? Functions fun on the readers df i.e
+        TODO adjustments are filters? Functions fun on the readers df i.e
         apply, should be change filter to apply then or is that confusing with pandas?
         """
         if self.adjustments:
             return reader.filter([a.apply for a in self.adjustments])
         return reader
-
-    def get_df_reader(self, filepath, **kwargs) -> OasisReader:
-        df_reader_config = clean_config(
-            InputReaderConfig(
-                filepath=filepath,
-                # TODO ?
-                engine="lot3.df_reader.reader.OasisDaskReader",
-            )
-        )
-
-        storage = getattr(
-            self, "storage", LocalStorageConnector("/")
-        )  # TODO passed in?
-        df_reader_config["engine"]["options"]["storage"] = storage
-
-        return get_df_reader(df_reader_config, **kwargs)
 
     def to_dataframe(self, result) -> pd.DataFrame:
         """
@@ -66,6 +61,17 @@ class ComplexData:
         directly to a dataframe and wrapped into our df_reader.
         """
         return pd.DataFrame(result)
+
+    def get_df_reader(self, filepath, **kwargs) -> OasisReader:
+        df_reader_config = clean_config(
+            InputReaderConfig(
+                filepath=filepath,
+                engine="lot3.df_reader.reader.OasisDaskReader",
+            )
+        )
+        df_reader_config["engine"]["options"]["storage"] = self.storage
+
+        return get_df_reader(df_reader_config, **kwargs)
 
     def to_reader(self, fetch_result) -> OasisReader:
         if fetch_result:
@@ -91,6 +97,11 @@ class ComplexData:
             fetch_result = self.fetch()
 
         reader = self.to_reader(fetch_result)
+
+        sql = self.get_sql()
+        if hasattr(reader, "sql") and sql:
+            reader = reader.sql(sql)
+
         reader = self.adjust(reader)
 
         # TODO store file? return for now
@@ -98,8 +109,6 @@ class ComplexData:
 
 
 class FileStoreComplexData(ComplexData):
-    storage: BaseStorageConnector  # TODO we read this in get_df_reader, will it always come from settings if so set on init?
-
     def to_dataframe(self, result) -> pd.DataFrame:
         """
         As this is only called on filetypes not handled by the df_reader, this will always be custom.

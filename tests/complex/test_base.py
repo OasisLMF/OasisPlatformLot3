@@ -6,6 +6,7 @@ from dask import dataframe as dd
 
 from lot3.complex.complex import Adjustment, ComplexData
 from lot3.df_reader.reader import OasisReader
+from lot3.filestore.backends.local_manager import LocalStorageConnector
 
 
 @pytest.fixture(autouse=True)
