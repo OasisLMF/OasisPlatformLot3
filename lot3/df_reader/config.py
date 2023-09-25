@@ -1,3 +1,4 @@
+import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, TypedDict, Union
@@ -51,10 +52,15 @@ def clean_config(config: Union[str, InputReaderConfig]) -> ResolvedReaderConfig:
             "options": {},
         }
     elif isinstance(_config.get("engine"), str):
-        _config["engine"] = {"path": _config.get("engine"), "options": {}}
-    else:
-        _config["engine"].setdefault("path", "lot3.df_reader.reader.OasisPandasReader")
-        _config["engine"].setdefault("options", {})
+        try:
+            # try to decode the string a json object so it can be
+            # serialized on the command line
+            _config["engine"] = json.loads(_config.get("engine"))  # type: ignore
+        except json.JSONDecodeError:
+            _config["engine"] = {"path": _config.get("engine"), "options": {}}
+
+    _config["engine"].setdefault("path", "lot3.df_reader.reader.OasisPandasReader")
+    _config["engine"].setdefault("options", {})
 
     return _config  # type: ignore
 

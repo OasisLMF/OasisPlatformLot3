@@ -8,6 +8,7 @@ import logging
 import pathlib
 from typing import Iterable
 
+import dask
 import dask_geopandas as dgpd
 import geopandas as gpd
 import pandas as pd
@@ -18,6 +19,9 @@ from dask_sql.utils import ParsingException
 from ..filestore.backends.storage_manager import BaseStorageConnector
 from .exceptions import InvalidSQLException
 
+dask.config.set(
+    {"dataframe.convert-string": False}
+)  # allows dask sql to support pyarrow
 logger = logging.getLogger("lot3.df_reader.reader")
 
 
@@ -317,7 +321,11 @@ class OasisDaskReader(OasisReader):
                 storage_options=self.storage.get_fsspec_storage_options(),
             )
         else:
-            self.df = dd.read_parquet(self.filename_or_buffer, *args, **kwargs)
+            self.df = dd.read_parquet(
+                self.filename_or_buffer,
+                *args,
+                **kwargs,
+            )
 
         # Currently categorical queries are not supported in dask https://github.com/dask-contrib/dask-sql/issues/423
         # When reading csv, these become strings anyway, so for now we convert to strings.
