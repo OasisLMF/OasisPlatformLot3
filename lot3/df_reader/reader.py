@@ -15,6 +15,7 @@ import pandas as pd
 from dask import dataframe as dd
 from dask_sql import Context
 from dask_sql.utils import ParsingException
+from distributed import Client
 
 from ..filestore.backends.storage_manager import BaseStorageConnector
 from .exceptions import InvalidSQLException
@@ -204,6 +205,19 @@ class OasisPandasReaderParquet(OasisPandasReader):
 
 
 class OasisDaskReader(OasisReader):
+    def __init__(self, *args,  client_address=None, **kwargs):
+        if client_address:
+            self.client = Client(client_address, set_as_default=False)
+        else:
+            self.client = None
+
+        super().__init__(*args, **kwargs)
+
+    def copy_with_df(self, df):
+        res = super().copy_with_df(df)
+        res.client = self.client
+        return res
+
     def apply_geo(self, shape_filename_path, *args, drop_geo=True, **kwargs):
         """
         Read in a shape file and return the _read file with geo data joined.
@@ -280,7 +294,10 @@ class OasisDaskReader(OasisReader):
 
     def as_pandas(self):
         super().as_pandas()
-        return self.df.compute()
+        if self.client:
+            return self.client.compute(self.df).result()
+        else:
+            return self.df.compute()
 
     def read_csv(self, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.

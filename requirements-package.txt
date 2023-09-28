@@ -99,6 +99,7 @@ dask-sql==2023.8.0
     # via -r requirements-package.in
 distributed==2023.7.1
     # via
+    #   -r requirements-package.in
     #   dask-geopandas
     #   dask-sql
 exceptiongroup==1.1.3
