@@ -205,7 +205,7 @@ class OasisPandasReaderParquet(OasisPandasReader):
 
 
 class OasisDaskReader(OasisReader):
-    def __init__(self, *args,  client_address=None, **kwargs):
+    def __init__(self, *args, client_address=None, **kwargs):
         if client_address:
             self.client = Client(client_address, set_as_default=False)
         else:
