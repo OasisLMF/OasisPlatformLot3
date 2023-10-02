@@ -344,11 +344,9 @@ class OasisDaskReader(OasisReader):
                 **kwargs,
             )
 
-        # Currently categorical queries are not supported in dask https://github.com/dask-contrib/dask-sql/issues/423
-        # When reading csv, these become strings anyway, so for now we convert to strings.
         category_cols = self.df.select_dtypes(include="category").columns
         for col in category_cols:
-            self.df[col] = self.df[col].astype(str)
+            self.df[col] = self.df[col].astype(self.df[col].dtype.categories.dtype)
 
 
 class OasisDaskReaderCSV(OasisDaskReader):
