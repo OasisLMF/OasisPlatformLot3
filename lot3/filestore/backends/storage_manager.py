@@ -205,7 +205,7 @@ class BaseStorageConnector(object):
             cached_file = no_cache_target
 
         if self.cache_root:
-            if os.path.isfile(cached_file):
+            if os.path.exists(cached_file):
                 logging.info("Get from Cache: {}".format(reference))
                 return cached_file
 
@@ -218,8 +218,8 @@ class BaseStorageConnector(object):
                 f.write(fdata)
                 logging.info("Get from URL: {}".format(reference))
         else:
-            # otherwise get it from teh storage and add it to the cache
-            self.fs.get(reference, cached_file)
+            # otherwise get it from the storage and add it to the cache
+            self.fs.get(reference, cached_file, recursive=True)
 
         return cached_file
 
