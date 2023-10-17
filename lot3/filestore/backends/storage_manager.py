@@ -205,7 +205,7 @@ class BaseStorageConnector(object):
             cached_file = no_cache_target
 
         if self.cache_root:
-            if os.path.isfile(cached_file):
+            if os.path.exists(cached_file):
                 logging.info("Get from Cache: {}".format(reference))
                 return cached_file
 
@@ -218,8 +218,8 @@ class BaseStorageConnector(object):
                 f.write(fdata)
                 logging.info("Get from URL: {}".format(reference))
         else:
-            # otherwise get it from teh storage and add it to the cache
-            self.fs.get(reference, cached_file)
+            # otherwise get it from the storage and add it to the cache
+            self.fs.get(reference, cached_file, recursive=True)
 
         return cached_file
 
@@ -391,7 +391,9 @@ class BaseStorageConnector(object):
     def open(self, path, *args, **kwargs):
         if self._is_valid_url(path):
             with tempfile.TemporaryDirectory() as d:
-                with open(self.get(path, d)) as f:
+                with open(
+                    self.get_from_cache(path, no_cache_target=os.path.join(d, "f"))
+                ) as f:
                     yield f
         else:
             with self.fs.open(path, *args, **kwargs) as f:
@@ -401,6 +403,7 @@ class BaseStorageConnector(object):
     def with_fileno(self, path, mode="rb"):
         with tempfile.TemporaryDirectory() as d:
             target = os.path.join(d, "fileno")
-            self.get(path, target)
+            path = self.get_from_cache(path, no_cache_target=target)
 
-            yield open(target, mode)
+            with open(path, mode) as f:
+                yield f

@@ -3,6 +3,7 @@ geopandas
 dask
 dask-geopandas
 dask-sql
+distributed
 fastparquet
 pyogrio
 fsspec

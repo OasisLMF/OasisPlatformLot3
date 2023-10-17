@@ -8,16 +8,21 @@ import logging
 import pathlib
 from typing import Iterable
 
+import dask
 import dask_geopandas as dgpd
 import geopandas as gpd
 import pandas as pd
 from dask import dataframe as dd
 from dask_sql import Context
 from dask_sql.utils import ParsingException
+from distributed import Client
 
 from ..filestore.backends.storage_manager import BaseStorageConnector
 from .exceptions import InvalidSQLException
 
+dask.config.set(
+    {"dataframe.convert-string": False}
+)  # allows dask sql to support pyarrow
 logger = logging.getLogger("lot3.df_reader.reader")
 
 
@@ -211,6 +216,19 @@ class OasisPandasReaderParquet(OasisPandasReader):
 
 
 class OasisDaskReader(OasisReader):
+    def __init__(self, *args, client_address=None, **kwargs):
+        if client_address:
+            self.client = Client(client_address, set_as_default=False)
+        else:
+            self.client = None
+
+        super().__init__(*args, **kwargs)
+
+    def copy_with_df(self, df):
+        res = super().copy_with_df(df)
+        res.client = self.client
+        return res
+
     def apply_geo(self, shape_filename_path, *args, drop_geo=True, **kwargs):
         """
         Read in a shape file and return the _read file with geo data joined.
@@ -291,7 +309,10 @@ class OasisDaskReader(OasisReader):
 
     def as_pandas(self):
         super().as_pandas()
-        return self.df.compute()
+        if self.client:
+            return self.client.compute(self.df).result()
+        else:
+            return self.df.compute()
 
     def read_dict(self, data):
         self.df = dd.DataFrame.from_dict(data)
@@ -335,13 +356,15 @@ class OasisDaskReader(OasisReader):
                 storage_options=self.storage.get_fsspec_storage_options(),
             )
         else:
-            self.df = dd.read_parquet(self.filename_or_buffer, *args, **kwargs)
+            self.df = dd.read_parquet(
+                self.filename_or_buffer,
+                *args,
+                **kwargs,
+            )
 
-        # Currently categorical queries are not supported in dask https://github.com/dask-contrib/dask-sql/issues/423
-        # When reading csv, these become strings anyway, so for now we convert to strings.
         category_cols = self.df.select_dtypes(include="category").columns
         for col in category_cols:
-            self.df[col] = self.df[col].astype(str)
+            self.df[col] = self.df[col].astype(self.df[col].dtype.categories.dtype)
 
 
 class OasisDaskReaderCSV(OasisDaskReader):
