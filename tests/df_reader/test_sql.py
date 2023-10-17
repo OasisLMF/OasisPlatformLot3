@@ -107,7 +107,7 @@ def test_sql__validity(sql, df):
         "SELECT table.A, table.B, joined0.J FROM table INNER JOIN joined0 ON table.B = joined0.L",  # joined field doesn't exists
     ),
 )
-@pytest.mark.parametrize("joined", (False,))
+@pytest.mark.parametrize("joined", (False, True))
 def test_sql__validity__not(joined, sql, df, joinable_df):
     with pytest.raises(InvalidSQLException):
         if joined:
