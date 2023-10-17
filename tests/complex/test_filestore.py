@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 
 import pandas as pd
 import pytest
+from django.conf import settings
 
 from lot3.complex.complex import FileStoreComplexData
 from tests.filestorage.test_general import (
@@ -18,15 +19,13 @@ class TestFileStoreComplexData(FileStoreComplexData):
     filename = test_file_name
 
     def to_dataframe(self, result) -> pd.DataFrame:
-        print(json.loads(result))
-        print(type(json.loads(result)))
         return pd.DataFrame(json.loads(result))
 
 
 storage_factories = [
     local_storage,
-    # abfs_storage,
-    # aws_storage,
+    abfs_storage,
+    aws_storage,
 ]
 
 

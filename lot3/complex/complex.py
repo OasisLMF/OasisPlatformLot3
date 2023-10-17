@@ -116,9 +116,7 @@ class FileStoreComplexData(ComplexData):
         raise NotImplementedError
 
     def fetch(self):
-        with self.storage.fs.fs.open(
-            os.path.join(self.storage.fs.path, self.filename), "rb"
-        ) as f:
+        with self.storage.open(self.filename, "rb") as f:
             result = BytesIO(f.read())
         return result
 
