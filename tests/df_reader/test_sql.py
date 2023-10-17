@@ -34,13 +34,37 @@ def df():
     )
 
 
-def _test_sql(df, sql):
+@pytest.fixture
+def joinable_df():
+    return pd.DataFrame(
+        {
+            "T": [
+                pd.Timestamp("20230101"),
+                pd.Timestamp("20230102"),
+                pd.Timestamp("20230103"),
+            ],
+            "J": [
+                "this",
+                "that",
+                "other",
+            ],
+        }
+    )
+
+
+def _test_sql(df, sql, joined_dfs=None):
     with NamedTemporaryFile(suffix=".csv") as csv:
         df.to_csv(
             path_or_buf=csv.name, columns=df.columns, encoding="utf-8", index=False
         )
 
-        result = OasisDaskReaderCSV(csv.name, storage).sql(sql).as_pandas()
+        result = OasisDaskReaderCSV(csv.name, storage)
+
+        if joined_dfs:
+            for i, df in enumerate(joined_dfs):
+                result = result.join(df=df, table_name=f"joined{i}")
+
+        result = result.sql(sql).as_pandas()
         assert isinstance(result, pd.DataFrame)
         return result
 
@@ -79,11 +103,17 @@ def test_sql__validity(sql, df):
         "SELECT SUM(Z) FROM table",  # incorrect field
         "SELECT UPPER(A) FROM table",  # non char field
         "SELECT LOWER(A) FROM table",  # non char field
+        "SELECT * FROM table INNER JOIN nontable ON table.X = nontable.y",  # joined table doesn't exists
+        "SELECT table.A, table.B, joined0.J FROM table INNER JOIN joined0 ON table.B = joined0.L",  # joined field doesn't exists
     ),
 )
-def test_sql__validity__not(sql, df):
+@pytest.mark.parametrize("joined", (False,))
+def test_sql__validity__not(joined, sql, df, joinable_df):
     with pytest.raises(InvalidSQLException):
-        _test_sql(df, sql)
+        if joined:
+            _test_sql(df, sql, joined_dfs=[joinable_df])
+        else:
+            _test_sql(df, sql)
 
 
 def test_sql__result__where(df):
@@ -222,4 +252,77 @@ def test_sql__result__aggregation__sum(df):
     assert result.to_dict() == {
         "E": {0: "test", 1: "train", 2: "else", 3: "other"},
         "sum_A": {0: 2.0, 1: 2.0, 2: 1.0, 3: 1.0},
+    }
+
+
+def test_sql__result__joined(df, joinable_df):
+    result = _test_sql(
+        df,
+        "SELECT table.A, table.B, joined0.J "
+        "FROM table "
+        "INNER JOIN joined0 ON table.B = joined0.T",
+        joined_dfs=[joinable_df],
+    )
+    assert result.to_dict() == {
+        "A": {0: 1.0, 4: 1.0, 7: 1.0, 10: 1.0, 12: 1.0, 17: 1.0},
+        "B": {
+            0: "2023-01-01",
+            4: "2023-01-02",
+            7: "2023-01-02",
+            10: "2023-01-02",
+            12: "2023-01-01",
+            17: "2023-01-03",
+        },
+        "j": {0: "this", 4: "that", 7: "that", 10: "that", 12: "this", 17: "other"},
+    }
+
+
+def test_sql__result__joined__where(df, joinable_df):
+    result = _test_sql(
+        df,
+        "SELECT table.A, table.B, joined0.J "
+        "FROM table "
+        "INNER JOIN joined0 ON table.B = joined0.T "
+        "WHERE joined0.J = 'this'",
+        joined_dfs=[joinable_df],
+    )
+    assert result.to_dict() == {
+        "A": {0: 1.0, 4: 1.0},
+        "B": {0: "2023-01-01", 4: "2023-01-01"},
+        "j": {0: "this", 4: "this"},
+    }
+
+
+def test_sql__result__joined__multi(df, joinable_df):
+    other_joinable_df = pd.DataFrame(
+        {
+            "X": [
+                "this",
+                "that",
+                "other",
+            ],
+            "Y": [1, 2, 3],
+        }
+    )
+
+    result = _test_sql(
+        df,
+        "SELECT table.A, table.B, joined0.J, joined1.Y "
+        "FROM table "
+        "INNER JOIN joined0 ON table.B = joined0.T "
+        "INNER JOIN joined1 ON joined0.J = joined1.X",
+        joined_dfs=[joinable_df, other_joinable_df],
+    )
+    assert result.to_dict() == {
+        "A": {0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0},
+        "B": {
+            0: "2023-01-01",
+            1: "2023-01-01",
+            2: "2023-01-02",
+            3: "2023-01-02",
+            4: "2023-01-02",
+            5: "2023-01-03",
+        },
+        "j": {0: "this", 1: "this", 2: "that", 3: "that", 4: "that", 5: "other"},
+        "y": {0: 1, 1: 1, 2: 2, 3: 2, 4: 2, 5: 3},
     }
