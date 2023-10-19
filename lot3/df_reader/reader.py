@@ -273,7 +273,6 @@ class OasisDaskReader(OasisReader):
 
     def apply_sql(self, sql):
         df = self.df.copy()
-
         try:
             # Initially this was the filename, but some filenames are invalid for the table,
             # is it ok to call it the same name all the time? Mapped to DaskDataTable in case
@@ -364,22 +363,25 @@ class OasisDaskReader(OasisReader):
             _, uri = self.storage.get_storage_url(
                 self.filename_or_buffer, encode_params=False
             )
-            self.df = dd.read_parquet(
-                uri,
-                *args,
-                **kwargs,
-                storage_options=self.storage.get_fsspec_storage_options(),
-            )
+            filename = uri
+            kwargs["storage_options"] = self.storage.get_fsspec_storage_options()
         else:
-            self.df = dd.read_parquet(
-                self.filename_or_buffer,
-                *args,
-                **kwargs,
-            )
+            filename = self.filename_or_buffer
 
-        category_cols = self.df.select_dtypes(include="category").columns
-        for col in category_cols:
-            self.df[col] = self.df[col].astype(self.df[col].dtype.categories.dtype)
+        self.df = dd.read_parquet(
+            filename,
+            *args,
+            **kwargs,
+        )
+
+        # dask-sql doesn't handle categorical columns, but we need to be careful
+        # how we convert them, if an assign is used we will end up stopping
+        # the `Predicate pushdown optimization` within dask-sql from applying the
+        # sql to the read_parquet filters.
+        categories_to_convert = {}
+        for col in self.df.select_dtypes(include="category").columns:
+            categories_to_convert[col] = self.df[col].dtype.categories.dtype
+        self.df = self.df.astype(categories_to_convert)
 
 
 class OasisDaskReaderCSV(OasisDaskReader):
