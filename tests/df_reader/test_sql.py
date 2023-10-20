@@ -273,7 +273,7 @@ def test_sql__result__joined(df, joinable_df):
             12: "2023-01-01",
             17: "2023-01-03",
         },
-        "j": {0: "this", 4: "that", 7: "that", 10: "that", 12: "this", 17: "other"},
+        "J": {0: "this", 4: "that", 7: "that", 10: "that", 12: "this", 17: "other"},
     }
 
 
@@ -289,7 +289,7 @@ def test_sql__result__joined__where(df, joinable_df):
     assert result.to_dict() == {
         "A": {0: 1.0, 4: 1.0},
         "B": {0: "2023-01-01", 4: "2023-01-01"},
-        "j": {0: "this", 4: "this"},
+        "J": {0: "this", 4: "this"},
     }
 
 
@@ -323,6 +323,6 @@ def test_sql__result__joined__multi(df, joinable_df):
             4: "2023-01-02",
             5: "2023-01-03",
         },
-        "j": {0: "this", 1: "this", 2: "that", 3: "that", 4: "that", 5: "other"},
-        "y": {0: 1, 1: 1, 2: 2, 3: 2, 4: 2, 5: 3},
+        "J": {0: "this", 1: "this", 2: "that", 3: "that", 4: "that", 5: "other"},
+        "Y": {0: 1, 1: 1, 2: 2, 3: 2, 4: 2, 5: 3},
     }

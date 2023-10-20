@@ -226,6 +226,7 @@ class OasisDaskReader(OasisReader):
 
         self.sql_context = Context()
         self.table_names = [self.sql_table_name]
+        self.pre_sql_columns = []
 
         super().__init__(*args, **kwargs)
 
@@ -280,7 +281,7 @@ class OasisDaskReader(OasisReader):
             self.sql_context.create_table("DaskDataTable", self.df)
             formatted_sql = sql.replace(self.sql_table_name, "DaskDataTable")
 
-            pre_sql_columns = df.columns
+            self.pre_sql_columns.extend(df.columns)
 
             # dask expects the columns to be lower case, which won't match some data
             df = self.sql_context.sql(
@@ -292,7 +293,7 @@ class OasisDaskReader(OasisReader):
             validated_columns = []
             for v in df.columns:
                 pre = False
-                for x in pre_sql_columns:
+                for x in self.pre_sql_columns:
                     if v.lower() == x.lower():
                         validated_columns.append(x)
                         pre = True
@@ -313,6 +314,7 @@ class OasisDaskReader(OasisReader):
             raise RuntimeError(
                 f"Table name already in use: [{','.join(self.table_names)}]"
             )
+        self.pre_sql_columns.extend(df.columns)
         self.sql_context.create_table(table_name, df)
         self.table_names.append(table_name)
         return self
