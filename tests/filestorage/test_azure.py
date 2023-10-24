@@ -3,7 +3,7 @@ import uuid
 
 import urllib3
 
-from lot3.filestore.backends.azure_storage import AzureObjectStore
+from lot3.filestore.backends.azure_abfs import AzureABFSStorage
 from lot3.filestore.config import get_storage_from_config
 
 
@@ -17,7 +17,7 @@ def make_storage(**kwargs):
     kwargs.setdefault("endpoint_url", "http://localhost:10000/devstoreaccount1")
     kwargs.setdefault("cache_dir", None)
 
-    fs = AzureObjectStore(**kwargs)
+    fs = AzureABFSStorage(**kwargs)
     fs.fs.fs.mkdir(fs.azure_container)
     fs.fs.mkdirs("")
 
@@ -36,7 +36,7 @@ def test_storage_constructed_from_config_matches_initial():
     result = get_storage_from_config(storage.to_config())
 
     assert storage.root_dir == os.path.join(storage.azure_container, "test_root")
-    assert isinstance(result, AzureObjectStore)
+    assert isinstance(result, AzureABFSStorage)
     assert result.root_dir == storage.root_dir
     assert result.azure_container == storage.azure_container
 

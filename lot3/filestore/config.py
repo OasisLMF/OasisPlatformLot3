@@ -5,8 +5,8 @@ from typing import Optional, Tuple, TypedDict, Union
 from typing_extensions import NotRequired
 
 from lot3.config import ConfigError, load_class
-from lot3.filestore.backends.local_manager import LocalStorageConnector
-from lot3.filestore.backends.storage_manager import BaseStorageConnector
+from lot3.filestore.backends.base import BaseStorage
+from lot3.filestore.backends.local import LocalStorage
 
 
 class BaseStorageConfig(TypedDict):
@@ -80,7 +80,7 @@ class StorageConfig(TypedDict):
 
 
 def get_storage_from_config(config: StorageConfig):
-    cls = load_class(config["storage_class"], BaseStorageConnector)
+    cls = load_class(config["storage_class"], BaseStorage)
     return cls(**config["options"])
 
 
@@ -98,7 +98,7 @@ def get_storage_from_config_path(config_path: Optional[str], fallback_path: str)
             config: StorageConfig = json.load(f)
             model_storage = get_storage_from_config(config)
     elif fallback_path:
-        model_storage = LocalStorageConnector(
+        model_storage = LocalStorage(
             root_dir=fallback_path,
         )
     else:

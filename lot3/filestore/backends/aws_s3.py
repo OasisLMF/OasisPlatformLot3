@@ -9,10 +9,10 @@ import fsspec
 from fsspec.asyn import sync
 
 from ..log import set_aws_log_level
-from .storage_manager import BaseStorageConnector
+from .base import BaseStorage
 
 
-class AwsObjectStore(BaseStorageConnector):
+class AwsS3Storage(BaseStorage):
     fsspec_filesystem_class = fsspec.get_filesystem_class("s3")
 
     def __init__(
@@ -125,7 +125,7 @@ class AwsObjectStore(BaseStorageConnector):
         if root_dir.endswith(os.path.sep):
             root_dir = root_dir[:-1]
 
-        super(AwsObjectStore, self).__init__(root_dir=root_dir, **kwargs)
+        super(AwsS3Storage, self).__init__(root_dir=root_dir, **kwargs)
 
     @property
     def config_options(self):
@@ -181,167 +181,6 @@ class AwsObjectStore(BaseStorageConnector):
             },
         }
 
-    # @property
-    # def connection(self):
-    #     """ Creates an S3 boto3 session
-    #
-    #     based on conf.ini or environment variables based on
-    #     a subset of variables used in Django-Storage AWS S3
-    #     """
-    #     if self._connection is None:
-    #         session = boto3.session.Session()
-    #         self._connection = session.resource(
-    #             's3',
-    #             aws_access_key_id=self.access_key,
-    #             aws_secret_access_key=self.secret_key,
-    #             aws_session_token=self.security_token,
-    #             region_name=self.region_name,
-    #             use_ssl=self.use_ssl,
-    #             verify=self.verify,
-    #             endpoint_url=self.endpoint_url,
-    #         )
-    #     return self._connection
-    #
-    # @property
-    # def bucket(self):
-    #     """ Get the current bucket.
-    #
-    #     If there is no current bucket object
-    #     create it.
-    #     """
-    #     if self._bucket is None:
-    #         self._bucket = self.connection.Bucket(self.bucket_name)
-    #     return self._bucket
-    #
-    # def _is_stored(self, object_key):
-    #     if not isinstance(object_key, str):
-    #         return False
-    #     try:
-    #         self.bucket.Object(object_key).load()
-    #         return True
-    #     except S3_ClientError as e:
-    #         if e.response['Error']['Code'] == "404":
-    #             return False
-    #         else:
-    #             # Not a 404 re-raise the execption
-    #             logging.info(e.response)
-    #             raise e
-    #
-    # def _fetch_file(self, reference, output_path=""):
-    #     """
-    #     Download an S3 object to a file
-    #
-    #     Parameters
-    #     ----------
-    #     :param file_path: Path to a file object for upload
-    #     :type  file_path: str
-    #
-    #     """
-    #     if output_path:
-    #         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    #         fpath = output_path
-    #     else:
-    #         fpath = os.path.basename(reference)
-    #
-    #     self.bucket.download_file(reference, fpath)
-    #     logging.info('Get S3: {}'.format(reference))
-    #     return os.path.abspath(fpath)
-    #
-    # def _store_file(self, file_path, storage_fname=None, storage_subdir='', suffix=None, **kwargs):
-    #     """ Overloaded function for AWS file storage
-    #
-    #     Uploads the Object pointed to by `file_path`
-    #     with a unique filename
-    #
-    #     Parameters
-    #     ----------
-    #     :param file_path: Path to a file object for upload
-    #     :type file_path: str
-    #
-    #     :param storage_fname: Set the name of stored file, instead of uuid
-    #     :type  storage_fname: str
-    #
-    #     :param suffix: Set the filename extension
-    #     :type suffix: str
-    #
-    #     :return: Download URL for uploaded object
-    #              Expires after (n) seconds set by
-    #              `AWS_QUERYSTRING_EXPIRE`
-    #     :rtype str
-    #     """
-    #     ext = file_path.split('.')[-1] if not suffix else suffix
-    #     filename = storage_fname if storage_fname else self._get_unique_filename(ext)
-    #     object_name = os.path.join(storage_subdir, filename)
-    #
-    #     if self.cache_root:
-    #         os.makedirs(self.cache_root, exist_ok=True)
-    #         cached_fp = os.path.join(self.cache_root, filename)
-    #         shutil.copy(file_path, cached_fp)
-    #
-    #     self.upload(object_name, file_path)
-    #     self.logger.info('Stored S3: {} -> {}'.format(file_path, object_name))
-    #
-    #     if self.shared_bucket:
-    #         # Return Object Key
-    #         return os.path.join(self.location, object_name)
-    #     else:
-    #         # Return URL
-    #         return self.url(object_name)
-    #
-    # # def _store_dir(self, directory_path, suffix=None, arcname=None):
-    # def _store_dir(self, directory_path, storage_fname=None, storage_subdir='', suffix=None, arcname=None):
-    #     """ Overloaded function for AWS Directory storage
-    #
-    #     Creates a compressed .tar.gz of all files under `directory_path`
-    #     Then uploads the tar to S3 with a unique filename
-    #
-    #     Parameters
-    #     ----------
-    #     :param directory_path: Path to a directory for upload
-    #     :type directory_path: str
-    #
-    #     :param storage_fname: Set the name of stored file, instead of uuid
-    #     :type  storage_fname: str
-    #
-    #     :param suffix: Set the filename extension
-    #                    defaults to `tar.gz`
-    #     :type suffix: str
-    #
-    #     :param arcname: If given, `arcname' set an alternative
-    #                     name for the file in the archive.
-    #     :type arcname: str
-    #
-    #
-    #     :return: Download URL for uploaded object
-    #              Expires after (n) seconds set by
-    #              `AWS_QUERYSTRING_EXPIRE`
-    #     """
-    #     ext = 'tar.gz' if not suffix else suffix
-    #     filename = storage_fname if storage_fname else self._get_unique_filename(ext)
-    #     object_name = os.path.join(storage_subdir, filename)
-    #     object_args = {
-    #         'ContentType': 'application/x-gzip',
-    #         'ContentEncoding': 'gzip'
-    #     }
-    #
-    #     with tempfile.TemporaryDirectory() as tmpdir:
-    #         archive_path = os.path.join(tmpdir, filename)
-    #         self.compress(archive_path, directory_path, arcname)
-    #         self.upload(object_name, archive_path, ExtraArgs=object_args)
-    #
-    #         if self.cache_root:
-    #             os.makedirs(self.cache_root, exist_ok=True)
-    #             cached_fp = os.path.join(self.cache_root, filename)
-    #             shutil.copy(archive_path, cached_fp)
-    #
-    #     self.logger.info('Stored S3: {} -> {}'.format(directory_path, object_name))
-    #     if self.shared_bucket:
-    #         # Return Object Key
-    #         return os.path.join(self.location, object_name)
-    #     else:
-    #         # Return URL
-    #         return self.url(object_name)
-    #
     def _strip_signing_parameters(self, url):
         """Duplicated Unsiged URLs from Django-Stroage
 

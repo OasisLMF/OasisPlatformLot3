@@ -6,7 +6,7 @@ from typing import Any, Dict, TypedDict, Union
 from typing_extensions import NotRequired
 
 from ..config import ConfigError, load_class
-from ..filestore.backends.local_manager import LocalStorageConnector
+from ..filestore.backends.local import LocalStorage
 from .reader import OasisReader
 
 
@@ -70,9 +70,7 @@ def get_df_reader(config, *args, **kwargs):
 
     cls = load_class(config["engine"]["path"], OasisReader)
 
-    storage = config["engine"]["options"].pop("storage", None) or LocalStorageConnector(
-        "/"
-    )
+    storage = config["engine"]["options"].pop("storage", None) or LocalStorage("/")
     return cls(
         config["filepath"], storage, *args, **kwargs, **config["engine"]["options"]
     )

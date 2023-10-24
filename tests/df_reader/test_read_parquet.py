@@ -6,11 +6,11 @@ import pytest
 
 from lot3.df_reader.exceptions import InvalidSQLException
 from lot3.df_reader.reader import OasisDaskReaderParquet, OasisPandasReaderParquet
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 READERS = [OasisPandasReaderParquet, OasisDaskReaderParquet]
 
-storage = LocalStorageConnector("/")
+storage = LocalStorage("/")
 
 
 @pytest.fixture

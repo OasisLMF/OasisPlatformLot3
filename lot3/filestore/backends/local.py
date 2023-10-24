@@ -1,13 +1,10 @@
 import contextlib
 from pathlib import Path
 
-from lot3.filestore.backends.storage_manager import (
-    BaseStorageConnector,
-    MissingInputsException,
-)
+from lot3.filestore.backends.base import BaseStorage, MissingInputsException
 
 
-class LocalStorageConnector(BaseStorageConnector):
+class LocalStorage(BaseStorage):
     """
     Implements storage for a local filesystem. All paths passed to the
     storage should be relative to the media root.

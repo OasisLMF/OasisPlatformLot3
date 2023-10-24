@@ -64,7 +64,7 @@ class StrictRootDirFs(DirFileSystem):
             return False
 
 
-class BaseStorageConnector(object):
+class BaseStorage(object):
     """Base storage class
 
     Implements storage for a local fileshare between
