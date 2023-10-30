@@ -11,5 +11,8 @@ types-botocore
 types-setuptools
 pandas-stubs
 hypothesis
+httpx
+respx
 geodatasets
 ipdb
+h5py

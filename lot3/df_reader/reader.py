@@ -42,19 +42,30 @@ class OasisReader:
         *args,
         dataframe=None,
         has_read=False,
-        **kwargs
+        **kwargs,
     ):
         self.filename_or_buffer = filename_or_buffer
-
         self.storage = storage
         self._df = dataframe
         self.has_read = has_read
         self.reader_args = args
         self.reader_kwargs = kwargs
 
-        if isinstance(
-            self.filename_or_buffer, str
-        ) and self.filename_or_buffer.lower().endswith(".zip"):
+        if not filename_or_buffer:
+            if dataframe is None and not has_read:
+                raise RuntimeError(
+                    "Reader must be initialised with either a "
+                    "filename_or_buffer or by passing a dataframe "
+                    "and has_read=True"
+                )
+            else:
+                self.read_from_dataframe()
+
+        if (
+            filename_or_buffer
+            and isinstance(self.filename_or_buffer, str)
+            and self.filename_or_buffer.lower().endswith(".zip")
+        ):
             self.reader_kwargs["compression"] = "zip"
 
     @property
@@ -103,9 +114,6 @@ class OasisReader:
 
         return self.copy_with_df(df)
 
-    def apply_filter(self, filters):
-        pass
-
     def sql(self, sql):
         if sql:
             self._read()
@@ -118,6 +126,9 @@ class OasisReader:
     def as_pandas(self):
         self._read()
         return self.df
+
+    def read_from_dataframe(self):
+        pass
 
 
 class OasisPandasReader(OasisReader):
@@ -205,11 +216,17 @@ class OasisPandasReaderParquet(OasisPandasReader):
 
 
 class OasisDaskReader(OasisReader):
+    sql_table_name = "table"
+
     def __init__(self, *args, client_address=None, **kwargs):
         if client_address:
             self.client = Client(client_address, set_as_default=False)
         else:
             self.client = None
+
+        self.sql_context = Context()
+        self.table_names = [self.sql_table_name]
+        self.pre_sql_columns = []
 
         super().__init__(*args, **kwargs)
 
@@ -257,20 +274,17 @@ class OasisDaskReader(OasisReader):
 
     def apply_sql(self, sql):
         df = self.df.copy()
-
         try:
-            c = Context()
-
             # Initially this was the filename, but some filenames are invalid for the table,
             # is it ok to call it the same name all the time? Mapped to DaskDataTable in case
             # we need to change this.
-            c.create_table("DaskDataTable", self.df)
-            formatted_sql = sql.replace("table", "DaskDataTable")
+            self.sql_context.create_table("DaskDataTable", self.df)
+            formatted_sql = sql.replace(self.sql_table_name, "DaskDataTable")
 
-            pre_sql_columns = df.columns
+            self.pre_sql_columns.extend(df.columns)
 
             # dask expects the columns to be lower case, which won't match some data
-            df = c.sql(
+            df = self.sql_context.sql(
                 formatted_sql,
                 config_options={"sql.identifier.case_sensitive": False},
             )
@@ -279,7 +293,7 @@ class OasisDaskReader(OasisReader):
             validated_columns = []
             for v in df.columns:
                 pre = False
-                for x in pre_sql_columns:
+                for x in self.pre_sql_columns:
                     if v.lower() == x.lower():
                         validated_columns.append(x)
                         pre = True
@@ -292,12 +306,32 @@ class OasisDaskReader(OasisReader):
         except ParsingException:
             raise InvalidSQLException
 
+    def join(self, df, table_name):
+        """
+        Creates a secondary table as a sql table in order to allow joins when apply_sql is called.
+        """
+        if table_name in self.table_names:
+            raise RuntimeError(
+                f"Table name already in use: [{','.join(self.table_names)}]"
+            )
+        self.pre_sql_columns.extend(df.columns)
+        self.sql_context.create_table(table_name, df)
+        self.table_names.append(table_name)
+        return self
+
+    def read_from_dataframe(self):
+        if not isinstance(self.df, dd.DataFrame):
+            self.df = dd.from_pandas(self.df, npartitions=1)
+
     def as_pandas(self):
         super().as_pandas()
         if self.client:
             return self.client.compute(self.df).result()
         else:
             return self.df.compute()
+
+    def read_dict(self, data):
+        self.df = dd.DataFrame.from_dict(data)
 
     def read_csv(self, *args, **kwargs):
         # remove standard pandas kwargs which will case an issue in dask.
@@ -331,22 +365,25 @@ class OasisDaskReader(OasisReader):
             _, uri = self.storage.get_storage_url(
                 self.filename_or_buffer, encode_params=False
             )
-            self.df = dd.read_parquet(
-                uri,
-                *args,
-                **kwargs,
-                storage_options=self.storage.get_fsspec_storage_options(),
-            )
+            filename = uri
+            kwargs["storage_options"] = self.storage.get_fsspec_storage_options()
         else:
-            self.df = dd.read_parquet(
-                self.filename_or_buffer,
-                *args,
-                **kwargs,
-            )
+            filename = self.filename_or_buffer
 
-        category_cols = self.df.select_dtypes(include="category").columns
-        for col in category_cols:
-            self.df[col] = self.df[col].astype(self.df[col].dtype.categories.dtype)
+        self.df = dd.read_parquet(
+            filename,
+            *args,
+            **kwargs,
+        )
+
+        # dask-sql doesn't handle categorical columns, but we need to be careful
+        # how we convert them, if an assign is used we will end up stopping
+        # the `Predicate pushdown optimization` within dask-sql from applying the
+        # sql to the read_parquet filters.
+        categories_to_convert = {}
+        for col in self.df.select_dtypes(include="category").columns:
+            categories_to_convert[col] = self.df[col].dtype.categories.dtype
+        self.df = self.df.astype(categories_to_convert)
 
 
 class OasisDaskReaderCSV(OasisDaskReader):
@@ -355,77 +392,3 @@ class OasisDaskReaderCSV(OasisDaskReader):
 
 class OasisDaskReaderParquet(OasisDaskReader):
     pass
-
-
-# Spark reader paused.
-# class OasisSparkReader(OasisReader):
-#     """
-#     While not yet prevented, currently sql and filter are not intended to be used together and in
-#     the case of spark, filter could only be used with sql if it was sql().as_pandas().filter() as they function
-#     on a different class.
-#     """
-#
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.spark = SparkSession.builder.appName("OasisPlatformLot3").getOrCreate()
-#
-#     def apply_geo(self, *args, **kwargs):
-#         """
-#         TODO - this is where we paused the Spark integration.
-#         """
-#         # import geopandas as gpd
-#         # from shapely.geometry import MultiPolygon
-#         #
-#         # shape_df = gpd.read_file(self.shape_filename_path)
-#         # # shape_df['longitude'] = shape_df['geometry'].x
-#         # # shape_df['latitude'] = shape_df['geometry'].y
-#         # # shape_df_spark = self.spark.createDataFrame(pd.DataFrame(shape_df).drop(['geometry'], axis=1))
-#         # # shape_df_spark_broadcast = self.spark.sparkContext.broadcast(shape_df_spark)
-#         #
-#         # @pandas_udf({}, PandasUDFType.GROUPED_MAP)
-#         # def join_shape_df_broadcast(data):
-#         #     # shapes = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(shape_df_spark_broadcast['longitude'], shape_df_spark_broadcast['latitude']))
-#         #     data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data['longitude'], data['latitude']))
-#         #     joined_df = gpd.sjoin(data, shape_df, how='inner')
-#         #     return joined_df
-#
-#         # self.df = self.df.groupby("").apply(join_shape_df_broadcast)
-#
-#     def apply_sql(self, sql):
-#         try:
-#             table_name = os.path.basename(self.filename_or_buffer).split(".")[0]
-#             self.df.createOrReplaceTempView(table_name)
-#             self.df = self.spark.sql(sql.replace("table", table_name))
-#         except AnalysisException:
-#             # TODO - validation? need to store images for display when this is hooked up. Probably bubble
-#             # this up to a generic sql message
-#             logger.warning("Invalid SQL provided")
-#             # temp until we decide on handling, i.e don't return full data if it fails.
-#             self.df = self.spark.createDataFrame([], StructType([]))
-#
-#     def as_pandas(self):
-#         super().as_pandas()
-#         # read_csv (and dask) will only return strings, integers and float, everything else is an object that
-#         # becomes a string. Spark will return timestamps/datetimes leading to a difference, so force the
-#         # evaluation for now. We need to see how this impacts the other code I can't see any obvious uses
-#         # of the parse_dates etc in read_csv.
-#         timestamp_to_strings = []
-#         for col, col_type in self.df.dtypes:
-#             if col_type in ["timestamp_ntz", "date"]:
-#                 self.df = self.df.withColumn(col, self.df[col].cast("string"))
-#                 # the ones we convert back to datetime64[ns]
-#                 if col_type in ["timestamp_ntz"]:
-#                     timestamp_to_strings.append(col)
-#
-#         df = self.df.toPandas()
-#         return df.astype({col: "datetime64[ns]" for col in timestamp_to_strings})
-#
-#
-# class OasisSparkReaderCSV(OasisSparkReader):
-#     def read_csv(self, filename_or_buffer, *args, **kwargs):
-#         self.df = self.spark.read.csv(filename_or_buffer, header=True, inferSchema=True)
-#
-#
-# class OasisSparkReaderParquet(OasisSparkReader):
-#     def read_parquet(self, filename_or_buffer, *args, **kwargs):
-#         self.df = self.spark.read.parquet(filename_or_buffer)
