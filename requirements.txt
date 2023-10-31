@@ -285,7 +285,7 @@ mypy-extensions==1.0.0
     # via
     #   black
     #   mypy
-numpy==1.25.2
+numpy<1.24,>=1.18
     # via
     #   -r ./requirements-package.txt
     #   dask
