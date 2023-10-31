@@ -1,5 +1,4 @@
 pandas
-numpy<1.24,>=1.18
 geopandas
 dask
 dask-geopandas
