@@ -12,7 +12,7 @@ from lot3.df_reader.reader import (
     OasisPandasReaderCSV,
     OasisPandasReaderParquet,
 )
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 READERS = [
     OasisPandasReaderCSV,
@@ -22,7 +22,7 @@ READERS = [
 ]
 
 
-storage = LocalStorageConnector("/")
+storage = LocalStorage("/")
 
 
 @pytest.fixture

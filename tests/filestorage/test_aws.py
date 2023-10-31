@@ -6,7 +6,7 @@ import pytest
 import urllib3
 from fsspec.asyn import sync
 
-from lot3.filestore.backends.aws_storage import AwsObjectStore
+from lot3.filestore.backends.aws_s3 import AwsS3Storage
 from lot3.filestore.config import get_storage_from_config
 
 
@@ -17,7 +17,7 @@ def make_storage(**kwargs):
     kwargs.setdefault("endpoint_url", "http://localhost:4566")
     kwargs.setdefault("cache_dir", None)
 
-    fs = AwsObjectStore(**kwargs)
+    fs = AwsS3Storage(**kwargs)
     fs.fs.mkdirs("")
 
     return fs
@@ -35,7 +35,7 @@ def test_storage_constructed_from_config_matches_initial():
     result = get_storage_from_config(storage.to_config())
 
     assert storage.root_dir == os.path.join(storage.bucket_name, "test_root")
-    assert isinstance(result, AwsObjectStore)
+    assert isinstance(result, AwsS3Storage)
     assert result.root_dir == storage.root_dir
     assert result.bucket_name == storage.bucket_name
 

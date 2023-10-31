@@ -7,10 +7,10 @@ from urllib import parse
 import fsspec
 
 from ..log import set_azure_log_level
-from .storage_manager import BaseStorageConnector
+from .base import BaseStorage
 
 
-class AzureObjectStore(BaseStorageConnector):
+class AzureABFSStorage(BaseStorage):
     # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-python
     fsspec_filesystem_class = fsspec.get_filesystem_class("abfs")
 
@@ -71,7 +71,7 @@ class AzureObjectStore(BaseStorageConnector):
         if root_dir.endswith(os.path.sep):
             root_dir = root_dir[:-1]
 
-        super(AzureObjectStore, self).__init__(root_dir=root_dir, **kwargs)
+        super(AzureABFSStorage, self).__init__(root_dir=root_dir, **kwargs)
 
     @property
     def config_options(self):

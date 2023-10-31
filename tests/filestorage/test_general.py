@@ -8,30 +8,30 @@ import pytest
 from hypothesis import given, settings
 from hypothesis.strategies import text
 
-from lot3.filestore.backends.aws_storage import AwsObjectStore
-from lot3.filestore.backends.azure_storage import AzureObjectStore
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.aws_s3 import AwsS3Storage
+from lot3.filestore.backends.azure_abfs import AzureABFSStorage
+from lot3.filestore.backends.local import LocalStorage
 
 test_file_name = "test_file.txt"
 test_dir_name = "test_dir"
 
 
 @contextlib.contextmanager
-def aws_storage(**kwargs):
+def aws_s3_storage(**kwargs):
     kwargs.setdefault("bucket_name", uuid.uuid4().hex)
     kwargs.setdefault("access_key", "LSIAQAAAAAAVNCBMPNSG")
     kwargs.setdefault("secret_key", "ANYTHING")
     kwargs.setdefault("endpoint_url", "http://localhost:4566")
     kwargs.setdefault("cache_dir", None)
 
-    fs = AwsObjectStore(**kwargs)
+    fs = AwsS3Storage(**kwargs)
     fs.fs.mkdirs("")
 
     yield fs
 
 
 @contextlib.contextmanager
-def abfs_storage(**kwargs):
+def azure_abfs_storage(**kwargs):
     kwargs.setdefault("azure_container", uuid.uuid4().hex)
     kwargs.setdefault("account_name", "devstoreaccount1")
     kwargs.setdefault(
@@ -41,7 +41,7 @@ def abfs_storage(**kwargs):
     kwargs.setdefault("endpoint_url", "http://localhost:10000/devstoreaccount1")
     kwargs.setdefault("cache_dir", None)
 
-    fs = AzureObjectStore(**kwargs)
+    fs = AzureABFSStorage(**kwargs)
     fs.fs.fs.mkdir(fs.azure_container)
     fs.fs.mkdirs("")
 
@@ -52,13 +52,13 @@ def abfs_storage(**kwargs):
 def local_storage(root_dir="", **kwargs):
     kwargs.setdefault("cache_dir", None)
     with TemporaryDirectory() as root:
-        yield LocalStorageConnector(root_dir=os.path.join(root, root_dir), **kwargs)
+        yield LocalStorage(root_dir=os.path.join(root, root_dir), **kwargs)
 
 
 storage_factories = [
     local_storage,
-    abfs_storage,
-    aws_storage,
+    azure_abfs_storage,
+    aws_s3_storage,
 ]
 
 

@@ -17,7 +17,7 @@ from dask_sql import Context
 from dask_sql.utils import ParsingException
 from distributed import Client
 
-from ..filestore.backends.storage_manager import BaseStorageConnector
+from ..filestore.backends.base import BaseStorage
 from .exceptions import InvalidSQLException
 
 dask.config.set(
@@ -38,7 +38,7 @@ class OasisReader:
     def __init__(
         self,
         filename_or_buffer,
-        storage: BaseStorageConnector,
+        storage: BaseStorage,
         *args,
         dataframe=None,
         has_read=False,

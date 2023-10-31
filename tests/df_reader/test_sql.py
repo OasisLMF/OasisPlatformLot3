@@ -6,11 +6,11 @@ import pytest
 
 from lot3.df_reader.exceptions import InvalidSQLException
 from lot3.df_reader.reader import OasisDaskReaderCSV
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 # Test readers in more detail, base SQL is tested for both CSV and parquet separate to this.
 
-storage = LocalStorageConnector("/")
+storage = LocalStorage("/")
 
 
 @pytest.fixture
