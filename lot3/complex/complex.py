@@ -10,7 +10,7 @@ import pandas as pd
 
 from lot3.df_reader.config import InputReaderConfig, clean_config, get_df_reader
 from lot3.df_reader.reader import OasisReader
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class ComplexData:
 
     def __init__(self, storage=None):
         if not storage:
-            storage = LocalStorageConnector()
+            storage = LocalStorage()
         self.storage = storage
 
     def fetch(self):

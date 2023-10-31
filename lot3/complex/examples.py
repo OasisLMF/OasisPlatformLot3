@@ -5,7 +5,7 @@ import pandas as pd
 
 from lot3.complex.complex import Adjustment, FileStoreComplexData
 from lot3.df_reader.reader import OasisDaskReader
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 
 class AddColAdjustment(Adjustment):
@@ -34,7 +34,7 @@ class FloodDataExample(FileStoreComplexData):
 
 if __name__ == "__main__":
     reader = OasisDaskReader
-    test_storage = LocalStorageConnector("/tmp")
+    test_storage = LocalStorage("/tmp")
 
     result = FloodDataExample(storage=test_storage).run()
     print(result.as_pandas())

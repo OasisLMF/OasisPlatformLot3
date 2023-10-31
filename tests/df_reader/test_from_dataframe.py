@@ -3,11 +3,11 @@ import pandas as pd
 import pytest
 
 from lot3.df_reader.reader import OasisDaskReader, OasisPandasReader, OasisReader
-from lot3.filestore.backends.local_manager import LocalStorageConnector
+from lot3.filestore.backends.local import LocalStorage
 
 READERS = [OasisDaskReader, OasisPandasReader]
 
-storage = LocalStorageConnector("/")
+storage = LocalStorage("/")
 
 
 @pytest.fixture
